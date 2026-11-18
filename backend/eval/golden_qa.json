@@ -1,0 +1,50 @@
+[
+  {
+    "id": "TC-01",
+    "category": "arch",
+    "question": "跨层事件穿透是如何把底层 RAG 进度推送给最外层 SSE 的？",
+    "expected_source": "docs/arch.md",
+    "expected_keywords": ["contextvars", "asyncio.Queue", "EventContext"],
+    "expected_tool": "rag_search"
+  },
+  {
+    "id": "TC-02",
+    "category": "arch",
+    "question": "为什么 RAG 只是 Services 的一部分而不是调度核心？",
+    "expected_source": "docs/arch.md",
+    "expected_keywords": ["Tool", "AgentLoop", "解耦"],
+    "expected_tool": "rag_search"
+  },
+  {
+    "id": "TC-03",
+    "category": "memory",
+    "question": "PostgreSQL 和 Redis 在四级记忆系统里分别负责什么？",
+    "expected_source": "docs/memory.md",
+    "expected_keywords": ["Redis", "PostgreSQL", "pgvector"],
+    "expected_tool": "rag_search"
+  },
+  {
+    "id": "TC-04",
+    "category": "security",
+    "question": "框架是如何保证多用户之间记忆和文档检索不越权的？",
+    "expected_source": "docs/security.md",
+    "expected_keywords": ["user_id", "AuthContext", "allowed_tools"],
+    "expected_tool": "rag_search"
+  },
+  {
+    "id": "TC-05",
+    "category": "rag",
+    "question": "商业化 RAG 入库时如何避免重复向量化未修改的文档？",
+    "expected_source": "docs/rag.md",
+    "expected_keywords": ["SHA-256", "content_hash", "事务"],
+    "expected_tool": "rag_search"
+  },
+  {
+    "id": "TC-06",
+    "category": "rag",
+    "question": "混合检索是如何结合向量检索和关键词检索的？",
+    "expected_source": "docs/rag.md",
+    "expected_keywords": ["BM25", "RRF", "Rerank"],
+    "expected_tool": "rag_search"
+  }
+]

@@ -1,0 +1,43 @@
+# ==============================================================================
+# .gitignore — Python (FastAPI) + Node/Vue 3 (Vite/pnpm) + macOS
+# ==============================================================================
+
+# 1. 环境变量与敏感凭证（严禁提交到 GitHub）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 2. Python 虚拟环境与缓存
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 3. 前端依赖与构建产物 (Vue 3 / Vite / pnpm)
+node_modules/
+frontend/dist/
+dist/
+*.local
+.pnpm-debug.log*
+
+# 4. 临时补丁、日志与本地测试数据
+*.log
+*.patch
+*.zip
+uploads/
+
+# 5. macOS 与编辑器配置
+.DS_Store
+.AppleDouble
+.LSOverride
+.vscode/
+.idea/
+*.swp
