@@ -10,6 +10,7 @@ src/config.py
 src/main.py
 src/api/auth.py
 src/api/bom.py
+src/api/bom_formula.py
 src/api/chat.py
 src/api/deps.py
 src/api/docs.py
@@ -26,7 +27,9 @@ src/core/tool_registry.py
 src/infra/http_client.py
 src/infra/postgres.py
 src/infra/redis.py
+src/repositories/bom_quote_repo.py
 src/repositories/bom_repo.py
+src/repositories/bom_schema.py
 src/repositories/doc_repo.py
 src/repositories/inventory_repo.py
 src/repositories/memory_repo.py
@@ -35,9 +38,14 @@ src/repositories/session_repo.py
 src/repositories/trace_repo.py
 src/repositories/user_repo.py
 src/repositories/workflow_repo.py
+src/schemas/bom_formula.py
 src/schemas/models.py
 src/services/bm25.py
+src/services/bom_costing.py
 src/services/bom_formula.py
+src/services/bom_formula_ai.py
+src/services/bom_formula_sheet.py
+src/services/bom_seed.py
 src/services/bom_service.py
 src/services/bom_tools.py
 src/services/chunker.py
@@ -53,6 +61,9 @@ src/services/workflow_skills.py
 tests/test_agent_loop.py
 tests/test_api_smoke.py
 tests/test_bom_costing.py
+tests/test_bom_drag.py
 tests/test_bom_formula.py
+tests/test_bom_formula_lab.py
 tests/test_bom_tools.py
 tests/test_rag_pipeline.py
+tests/test_security_fixes.py
