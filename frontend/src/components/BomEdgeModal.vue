@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { checkBomFormula, type FormulaCheckResult } from '../api/client'
-import type { BomItem } from '../api/client'
+import { checkBomFormula, type FormulaCheckResult, type BomItem } from '../api/bomClient'
 
 const props = defineProps<{
   visible: boolean

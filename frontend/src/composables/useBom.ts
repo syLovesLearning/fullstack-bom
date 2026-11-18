@@ -4,7 +4,7 @@ import {
   fetchBomRollupTree, listBomEdges, listBomItems, listBomQuotes, saveBomQuote,
   seedBomDemo, updateBomEdge, upsertBomItem,
   type BomEdge, type BomItem, type BomRollupResponse, type QuoteSnapshotItem, type StockCheckItem,
-} from '../api/client'
+} from '../api/bomClient'
 
 const items = ref<BomItem[]>([])
 const edges = ref<BomEdge[]>([])
@@ -51,8 +51,8 @@ export function useBom() {
   async function runStockCheck(token: string, rootId: string) {
     stockItems.value = await checkBomStock(token, { root_id: rootId, ...sandbox3d.value })
   }
-  async function createQuote(token: string, rootId: string, note = '') {
-    const q = await saveBomQuote(token, { root_id: rootId, ...sandbox3d.value, margin_rate: 0.15, tax_rate: 0.13, note })
+  async function createQuote(token: string, rootId: string, note = '', marginRate = 0.15, taxRate = 0.13) {
+    const q = await saveBomQuote(token, { root_id: rootId, ...sandbox3d.value, margin_rate: marginRate, tax_rate: taxRate, note })
     quotes.value = await listBomQuotes(token)
     return q
   }

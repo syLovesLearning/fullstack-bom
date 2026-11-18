@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useBom } from '../composables/useBom'
-import type { BomItem } from '../api/client'
+import type { BomItem } from '../api/bomClient'
 
 const props = defineProps<{ token: string }>()
 const { items, saveItem, removeItem } = useBom()

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useBom } from '../composables/useBom'
+import type { QuoteSnapshotItem } from '../api/bomClient'
 import BomEdgeModal from './BomEdgeModal.vue'
 
 const props = defineProps<{ token: string }>()
@@ -12,6 +13,10 @@ const cloneFromId = ref('')
 const modalOpen = ref(false)
 const editingEdge = ref<Record<string, any> | null>(null)
 const msg = ref(''); const errMsg = ref('')
+const marginPct = ref(15)
+const taxPct = ref(13)
+const compareBase = ref<QuoteSnapshotItem | null>(null)
+const compareMsg = ref('')
 
 const parentOptions = computed(() => items.value.filter((i) => i.category === 'PRODUCT' || i.category === 'SEMI_FINISHED'))
 
@@ -38,8 +43,24 @@ async function handleClone() {
 
 async function handleSaveQuote() {
   if (!rootId.value) return
-  const q = await createQuote(props.token, rootId.value, '3D沙盒试算快照')
-  msg.value = `已冻结报价快照 ${q.quote_no}（含税 ¥${q.final_price}）`
+  errMsg.value = ''
+  try {
+    const q = await createQuote(props.token, rootId.value, '3D沙盒试算快照', marginPct.value / 100, taxPct.value / 100)
+    msg.value = `已冻结报价快照 ${q.quote_no}（毛利 ${marginPct.value}% + 税 ${taxPct.value}% → 含税 ¥${q.final_price}）`
+  } catch (err) { errMsg.value = err instanceof Error ? err.message : String(err) }
+}
+
+function handleCompare(q: QuoteSnapshotItem) {
+  if (!compareBase.value || compareBase.value.id === q.id) {
+    compareBase.value = q
+    compareMsg.value = `已设对比基准：${q.quote_no}（直接成本 ¥${q.direct_cost} · 含税 ¥${q.final_price}），点击其他快照计算差额`
+    return
+  }
+  const dCost = +(q.direct_cost - compareBase.value.direct_cost).toFixed(2)
+  const dPrice = +(q.final_price - compareBase.value.final_price).toFixed(2)
+  const fmt = (v: number) => `${v >= 0 ? '+' : ''}${v}`
+  compareMsg.value = `${compareBase.value.quote_no} → ${q.quote_no}：直接成本 ${fmt(dCost)} 元，含税总价 ${fmt(dPrice)} 元`
+  compareBase.value = null
 }
 
 function exportCsv() {
@@ -66,6 +87,8 @@ onMounted(async () => {
       <label>D <input v-model.number="sandbox3d.d" type="number" class="num-inp" @change="refreshTreeOnly(token, rootId)" /></label>
       <label>T <input v-model.number="sandbox3d.t" type="number" step="0.5" class="num-inp" @change="refreshTreeOnly(token, rootId)" /></label>
       <button class="btn" @click="runStockCheck(token, rootId)">跨库查库存</button>
+      <label>毛利% <input v-model.number="marginPct" type="number" min="0" max="80" class="num-inp" style="width: 52px" /></label>
+      <label>税% <input v-model.number="taxPct" type="number" min="0" max="30" class="num-inp" style="width: 52px" /></label>
       <button class="btn btn-primary" @click="handleSaveQuote">冻结报价快照</button>
       <button class="btn" @click="exportCsv">导出 CSV</button>
       <div v-if="rollup" class="cost-pills">
@@ -129,10 +152,16 @@ onMounted(async () => {
         </div>
 
         <div v-if="quotes.length" class="table-wrap">
+          <p v-if="compareMsg" class="ok-line">{{ compareMsg }}</p>
           <table>
-            <thead><tr><th>历史报价快照</th><th>产品</th><th>直接成本</th><th>含税总价</th><th>时间</th></tr></thead>
+            <thead><tr><th>历史报价快照</th><th>产品</th><th>直接成本</th><th>含税总价</th><th>时间</th><th>对比</th></tr></thead>
             <tbody>
-              <tr v-for="q in quotes.slice(0, 5)" :key="q.id"><td>{{ q.quote_no }}</td><td>{{ q.root_name }}</td><td>¥{{ q.direct_cost }}</td><td><strong>¥{{ q.final_price }}</strong></td><td>{{ new Date(q.created_at).toLocaleString() }}</td></tr>
+              <tr v-for="q in quotes.slice(0, 5)" :key="q.id">
+                <td>{{ compareBase?.id === q.id ? '⬤ ' : '' }}{{ q.quote_no }}</td>
+                <td>{{ q.root_name }}</td><td>¥{{ q.direct_cost }}</td><td><strong>¥{{ q.final_price }}</strong></td>
+                <td>{{ new Date(q.created_at).toLocaleString() }}</td>
+                <td><button class="btn" @click="handleCompare(q)">{{ compareBase?.id === q.id ? '基准' : '⚖ 对比' }}</button></td>
+              </tr>
             </tbody>
           </table>
         </div>
