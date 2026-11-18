@@ -4,21 +4,25 @@
 
 ## 1. 鉴权与会话
 
-- `POST /auth/dev-login` -> `{username, role}` -> `{access_token, token_type, user}`
+- `POST /auth/dev-login` -> `{username, role}` -> `{access_token, token_type, user}`（**仅 `ENV=dev` 可用**；非 dev 环境返回 403）
 - `GET /auth/me` -> `AuthContext`
+- `POST /auth/register` -> `{username, password, role, groups}` -> `{access_token, user}`（**role 白名单：`user`/`readonly`/`external_guest`**；传 `admin` 返回 422/403，管理员只能由库内提权）
+- `POST /auth/login` -> `{username, password}` -> `{access_token, user}`（校验密码与 `is_active`，停用账号返回 401）
 - `POST /sessions` -> `{agent_name, title}` -> `{id, user_id, ...}`
 - `GET /sessions` -> `Session[]`
 - `GET /sessions/{session_id}/messages` -> `Message[]`
 
 ## 2. 流式对话 (SSE)
 
-- `POST /sessions/{session_id}/chat/stream` -> `{message}` -> `text/event-stream`
+- `POST /sessions/{session_id}/chat/stream` -> `{message, max_steps?, top_k?, min_score?, enable_rag?}` -> `text/event-stream`
+  - `top_k`（默认 3）与 `min_score`（默认 0.2）为**请求级 rag_search 默认参数**：LLM 未显式传参时按此值检索，前端调试面板实时生效
+  - `enable_rag=false` 时从本次请求的 `allowed_tools` 中剔除 `rag_search`
 - **SSE 事件协议**：
   - `event: thought` -> `{"step": int, "status": "reasoning"}`
   - `event: tool_start` -> `{"tool": str, "args": dict}`
   - `event: citations` -> `{"items": [{index, title, source_path, heading_path, score, snippet}]}`
   - `event: tool_result` -> `{"tool": str, "duration_ms": int, "preview": str}`
-  - `event: token` -> `{"text": str}`
+  - `event: token` -> `{"text": str}`（按 ~24 字符分块推送）
   - `event: done` -> `{"run_id": uuid, "total_tokens": int, "latency_ms": int}`
   - `event: error` -> `{"message": str}`
 
@@ -27,18 +31,26 @@
 - `GET|POST /memories`, `DELETE /memories/{memory_id}`
 - `POST /docs/ingest` -> `{title, source_path, category, content}` -> `{document_id, status, chunks}`
 - `GET /docs`, `DELETE /docs/{doc_id}`, `POST /docs/search` -> `{query, category, top_k}`
-- `GET /tools`（按 `AuthContext.allowed_tools` 裁剪）, `GET /runs/{run_id}/trace`
+- `GET /tools`（按 `AuthContext.allowed_tools` 裁剪；registry 构建与 chat 一致，含 workflow/inventory/BOM 工具）, `GET /runs/{run_id}/trace`
 - **智能体 BOM 工具**（admin/user 角色默认可用，readonly/external_guest 不可见）：
   - `bom_quote`：按 `{root_keyword, h, w, d, t, margin_rate, tax_rate}` 试算 BOM 成本与报价，SSE 推 `action_cards`（`kind: "bom_quote"`，含 `direct_cost/final_price/cost_summary`）
   - `bom_stock_check`：按 3D 参数核查物料齐套状态，缺料时 SSE 推 `action_cards`（`kind: "inventory_alert"`，`safety_stock` 语义为需求量）
 - `GET /eval/cases` -> `EvalCase[]`（读取 `eval/golden_qa.json`）
 - `POST /eval/seed` -> 初始化示例文档到 Postgres
 - `POST /eval/run` -> `{seed_if_empty, top_k}` -> `{summary: {total, passed, hit_rate_at_3, mrr, avg_latency_ms}, results}`
-- `POST /docs/upload` -> `multipart/form-data` (`files[]`, `category`) -> 批量入库（支持 `.md/.txt/.pdf/.zip`）
+- `POST /docs/upload` -> `multipart/form-data` (`files[]`, `category`) -> 批量入库（支持 `.md/.txt/.pdf/.zip`；embedding 失败时该文档入库报错，不降级写入）
 - `POST /docs/search-debug` -> `{query, category, top_k, min_score}` -> `{tokens, rejected, latency_ms, vec_hits, fts_hits, reranked_hits}`
-- `POST /auth/register` -> `{username, password, role, groups}` -> `{access_token, user}`
-- `POST /auth/login` -> `{username, password}` -> `{access_token, user}`
 - `kb_documents.allowed_groups` 与 `users.groups` 通过 PostgreSQL `&&` 数组重叠过滤文档可见性。
+
+## 3.5 配置化企业流程（Workflows）
+
+- `GET /workflows/skills` -> `WorkflowDefinition[]`（按当前角色过滤可发起的流程）
+- `POST /workflows/definitions` -> `WorkflowDefinitionUpsert`（仅 admin；动态配置新流程类型）
+- `POST /workflows` -> `{flow_code, form_data}` -> `WorkflowInstance`（按定义字段动态校验后入库）
+- `GET /workflows?flow_code=&page=&page_size=&scope=mine|all` -> `{items, total, page, page_size}`
+  - `scope=mine`（默认）：仅本人发起的台账；`scope=all`：**仅 admin**，全量台账（含 `owner_name`），用于审批视图
+- `PATCH /workflows/{instance_id}/status` -> `{status: approved|rejected, channel}` -> `WorkflowInstance`
+  - **审批规则**：仅 `admin` 角色可审批；**不得审批自己发起的实例**（403）；已审批实例重复操作返回 409；`approved_by` 记录实际审批人
 
 ## 4. 基础 BOM 维护 (独立库 `bom_db`)
 

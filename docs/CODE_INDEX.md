@@ -26,7 +26,7 @@
 | `backend/src/infra/http_client.py` | create_http_client, close_http_client | - | 全局复用的异步 HTTPX 客户端（用于大模型与外部 API 调用）。 |
 | `backend/src/infra/postgres.py` | create_pg_pool, close_pg_pool | - | PostgreSQL 异步连接池生命周期管理（psycopg3）。 |
 | `backend/src/infra/redis.py` | create_redis_client, close_redis_client | - | Redis 异步连接池管理（本地未启动 Redis 时允许降级运行）。 |
-| `backend/src/main.py` | lifespan, health | src.api, src.config, src.infra.http_client, src.infra.postgres, src.infra.redis, src.repositories.bom_repo | FastAPI 应用入口：通过 lifespan 统一托管 Postgres / Redis / HTTPX 连接池。 |
+| `backend/src/main.py` | lifespan, health | src.api, src.config, src.infra.http_client, src.infra.postgres, src.infra.redis, src.repositories.bom_repo, src.repositories.menu_repo | FastAPI 应用入口：通过 lifespan 统一托管 Postgres / Redis / HTTPX 连接池。 |
 | `backend/src/repositories/bom_quote_repo.py` | insert_quote_snapshot, list_quote_snapshots | - | 报价快照持久化：BomRepo 委托到此模块，避免仓库文件超出行数上限。 |
 | `backend/src/repositories/bom_repo.py` | BomRepo | src.repositories.bom_quote_repo, src.repositories.bom_schema | BOM 仓库：独立库 bom_db 读写与自动增量列迁移（强制 user_id 隔离）。 |
 | `backend/src/repositories/bom_schema.py` | run_v3_migration | - | BOM 库 V3 增量迁移：独立成模块，由 BomRepo 单例在生命周期内调用一次。 |
