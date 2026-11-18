@@ -14,7 +14,6 @@ class RegisteredTool:
     description: str
     args_model: type[BaseModel]
     handler: Callable[[BaseModel], Awaitable[str]]
-    requires_approval: bool = False
 
 
 class ToolRegistry:
@@ -26,7 +25,6 @@ class ToolRegistry:
         name: str,
         description: str,
         args_model: type[BaseModel],
-        requires_approval: bool = False,
     ) -> Callable[[Callable[[Any], Awaitable[str]]], Callable[[Any], Awaitable[str]]]:
         def decorator(fn: Callable[[Any], Awaitable[str]]) -> Callable[[Any], Awaitable[str]]:
             self._tools[name] = RegisteredTool(
@@ -34,7 +32,6 @@ class ToolRegistry:
                 description=description,
                 args_model=args_model,
                 handler=fn,
-                requires_approval=requires_approval,
             )
             return fn
 

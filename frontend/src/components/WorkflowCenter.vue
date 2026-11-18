@@ -10,7 +10,7 @@ import {
   type WorkflowItem,
 } from '../api/client'
 
-const props = defineProps<{ token: string; role: string }>()
+const props = defineProps<{ token: string; role: string; currentUserId?: string }>()
 const emit = defineEmits<{ goChat: [] }>()
 
 const definitions = ref<WorkflowDefinition[]>([])
@@ -46,9 +46,16 @@ const pageSize = ref(6)
 const filterFlow = ref('')
 const loading = ref(false)
 const detailItem = ref<WorkflowItem | null>(null)
+// admin 走 scope=all 审批视图（可看到他人发起的流程）；普通用户只看自己的台账
+const isAdmin = computed(() => props.role === 'admin')
 
 const currentDef = computed(() => definitions.value.find((d) => d.flow_code === activeFlow.value) ?? null)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
+/** 是否可审批该条：admin 视角且非本人发起（防自审自批，与后端校验一致）。 */
+function canApprove(w: WorkflowItem): boolean {
+  return isAdmin.value && w.status === 'submitted' && !!w.user_id && w.user_id !== props.currentUserId
+}
 
 function resetFormDefaults(def: WorkflowDefinition | null) {
   if (!def) {
@@ -78,7 +85,7 @@ async function loadSkills() {
 async function fetchList() {
   loading.value = true
   try {
-    const res = await listWorkflows(props.token, filterFlow.value, page.value, pageSize.value)
+    const res = await listWorkflows(props.token, filterFlow.value, page.value, pageSize.value, isAdmin.value ? 'all' : 'mine')
     items.value = res.items
     total.value = res.total
   } finally {
@@ -204,7 +211,7 @@ onMounted(async () => {
     <!-- 右侧：支持筛选与分页的流程台账 -->
     <div class="list-card">
       <div class="card-head">
-        <h2>已发起流程台账 (共 {{ total }} 条)</h2>
+        <h2>{{ isAdmin ? '全量流程台账（审批视图）' : `已发起流程台账 (共 ${total} 条)` }}</h2>
         <div class="filters">
           <select v-model="filterFlow" class="sel">
             <option value="">全部流程</option>
@@ -220,6 +227,7 @@ onMounted(async () => {
             <tr>
               <th>流程编码</th>
               <th>标题 / 项目</th>
+              <th v-if="isAdmin">发起人</th>
               <th>状态</th>
               <th>发起时间</th>
               <th>操作</th>
@@ -229,6 +237,7 @@ onMounted(async () => {
             <tr v-for="w in items" :key="w.id">
               <td><span class="badge badge-blue">{{ w.flow_code }}</span></td>
               <td><strong>{{ w.title }}</strong></td>
+              <td v-if="isAdmin">{{ w.owner_name ?? '-' }}</td>
               <td>
                 <span :class="['badge', w.status === 'approved' ? 'badge-ok' : w.status === 'rejected' ? 'badge-err' : 'badge-muted']">
                   {{ w.status }}
@@ -237,12 +246,12 @@ onMounted(async () => {
               <td>{{ new Date(w.created_at).toLocaleString() }}</td>
               <td class="ops-cell">
                 <button class="btn" @click="detailItem = w">详情</button>
-                <button v-if="w.status === 'submitted'" class="btn" @click="handleApprove(w, 'approved')">通过</button>
-                <button v-if="w.status === 'submitted'" class="btn" @click="handleApprove(w, 'rejected')">驳回</button>
+                <button v-if="canApprove(w)" class="btn" @click="handleApprove(w, 'approved')">通过</button>
+                <button v-if="canApprove(w)" class="btn" @click="handleApprove(w, 'rejected')">驳回</button>
               </td>
             </tr>
             <tr v-if="!items.length">
-              <td colspan="5" class="empty">暂无已发起流程。</td>
+              <td :colspan="isAdmin ? 6 : 5" class="empty">暂无已发起流程。</td>
             </tr>
           </tbody>
         </table>

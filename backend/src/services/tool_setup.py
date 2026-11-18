@@ -17,7 +17,7 @@ from src.services.workflow_skills import validate_dynamic_workflow
 
 class RagSearchArgs(BaseModel):
     query: str = Field(description="需要检索的研发文档或知识库问题")
-    top_k: int = Field(default=3, ge=1, le=10, description="返回最相关的片段数量")
+    top_k: int | None = Field(default=None, ge=1, le=10, description="返回最相关的片段数量；不传则使用本次会话的默认值")
 
 
 class MemorySaveArgs(BaseModel):
@@ -45,7 +45,11 @@ def build_tool_registry(
     workflow_repo: WorkflowRepo | None = None,
     inventory_repo: InventoryRepo | None = None,
     bom_service: BomService | None = None,
+    default_top_k: int = 3,
+    default_min_score: float = 0.2,
 ) -> ToolRegistry:
+    """构建工具注册表。default_top_k / default_min_score 来自请求级调试参数（ChatRequest），
+    LLM 未显式传 top_k 时回落到会话默认值，保证前端调试面板真实生效。"""
     registry = ToolRegistry()
 
     @registry.register(
@@ -54,7 +58,8 @@ def build_tool_registry(
         args_model=RagSearchArgs,
     )
     async def rag_search_tool(args: RagSearchArgs) -> str:
-        return await rag_service.search(query=args.query, top_k=args.top_k)
+        top_k = args.top_k if args.top_k is not None else default_top_k
+        return await rag_service.search(query=args.query, top_k=top_k, min_score=default_min_score)
 
     @registry.register(
         name="memory_save",
@@ -113,7 +118,7 @@ def build_tool_registry(
             if auth is None:
                 return json.dumps({"items": []}, ensure_ascii=False)
             res = await workflow_repo.list_instances(
-                user_id=auth.user_id, flow_code=args.flow_code or None, page=1, page_size=args.limit
+                owner_user_id=auth.user_id, flow_code=args.flow_code or None, page=1, page_size=args.limit
             )
             cards = [
                 {

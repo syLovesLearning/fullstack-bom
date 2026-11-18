@@ -135,7 +135,7 @@ onMounted(() => quickSwitch("admin"))
         <template v-else-if="token">
           <PlatformOverview v-if="activeTab === 'overview'" @navigate="(t) => (activeTab = t)" />
           <BomManager v-else-if="activeTab === 'bom'" :token="token" />
-          <WorkflowCenter v-else-if="activeTab === 'workflow'" :token="token" :role="currentUser?.role || 'user'" @go-chat="activeTab = 'chat'" />
+          <WorkflowCenter v-else-if="activeTab === 'workflow'" :token="token" :role="currentUser?.role || 'user'" :current-user-id="currentUser?.user_id || currentUser?.id || ''" @go-chat="activeTab = 'chat'" />
           <ChatWorkspace v-else-if="activeTab === 'chat'" :token="token" @go-workflow="activeTab = 'workflow'" />
           <MemoryManager v-else-if="activeTab === 'mem'" :token="token" />
           <KnowledgeBase v-else-if="activeTab === 'kb'" :token="token" />
@@ -158,7 +158,7 @@ onMounted(() => quickSwitch("admin"))
         <template v-if="authMode === 'register'">
           <select v-model="formRole" class="m-input">
             <option value="user">user</option><option value="readonly">readonly</option>
-            <option value="external_guest">external_guest</option><option value="admin">admin</option>
+            <option value="external_guest">external_guest</option>
           </select>
           <input v-model="formGroups" class="m-input" placeholder="分组如 public,engineering" />
         </template>

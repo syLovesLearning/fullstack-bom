@@ -73,6 +73,15 @@ class WorkflowRepo:
                 assert row is not None
                 return dict(row)
 
+    async def get_instance(self, instance_id: UUID) -> dict[str, Any] | None:
+        """取流程实例归属（审批前校验 owner，防止自审自批）。"""
+        sql = "SELECT id, user_id, flow_code, title, status FROM workflow_instances WHERE id = %s;"
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(sql, (instance_id,))
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
     async def create_instance(
         self, user_id: UUID, flow_code: str, title: str, form_data: dict[str, Any]
     ) -> dict[str, Any]:
@@ -92,41 +101,46 @@ class WorkflowRepo:
 
     async def list_instances(
         self,
-        user_id: UUID,
+        owner_user_id: UUID | None,
         flow_code: str | None = None,
         page: int = 1,
         page_size: int = 10,
     ) -> dict[str, Any]:
+        """owner_user_id=None 视为全量台账（仅供 admin 审批视图使用，权限在 API 层裁定）。"""
         offset = (page - 1) * page_size
         count_sql = """
             SELECT COUNT(*) AS cnt
             FROM workflow_instances
-            WHERE user_id = %s AND (%s::text IS NULL OR flow_code = %s);
+            WHERE (%s::uuid IS NULL OR user_id = %s) AND (%s::text IS NULL OR flow_code = %s);
         """
         list_sql = """
-            SELECT id, flow_code, title, form_data, status, approved_by, action_channel, approved_at, created_at
-            FROM workflow_instances
-            WHERE user_id = %s AND (%s::text IS NULL OR flow_code = %s)
-            ORDER BY created_at DESC
+            SELECT w.id, w.user_id, u.username AS owner_name, w.flow_code, w.title, w.form_data,
+                   w.status, w.approved_by, w.action_channel, w.approved_at, w.created_at
+            FROM workflow_instances w JOIN users u ON u.id = w.user_id
+            WHERE (%s::uuid IS NULL OR w.user_id = %s) AND (%s::text IS NULL OR w.flow_code = %s)
+            ORDER BY w.created_at DESC
             LIMIT %s OFFSET %s;
         """
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(count_sql, (user_id, flow_code, flow_code))
+                await cur.execute(count_sql, (owner_user_id, owner_user_id, flow_code, flow_code))
                 cnt_row = await cur.fetchone()
                 total = int(cnt_row["cnt"]) if cnt_row else 0
-                await cur.execute(list_sql, (user_id, flow_code, flow_code, page_size, offset))
+                await cur.execute(
+                    list_sql, (owner_user_id, owner_user_id, flow_code, flow_code, page_size, offset)
+                )
                 items = [dict(r) for r in await cur.fetchall()]
                 return {"items": items, "total": total, "page": page, "page_size": page_size}
 
     async def update_status_idempotent(
         self,
         instance_id: UUID,
-        user_id: UUID,
+        owner_user_id: UUID,
         status: str,
         operator: str,
         channel: str = "form",
     ) -> dict[str, Any] | None:
+        """审批落库：owner_user_id 用于兜底约束（API 层已校验审批人非发起人）。"""
         sql = """
             UPDATE workflow_instances
             SET status = %s, approved_by = %s, action_channel = %s, approved_at = NOW()
@@ -135,6 +149,6 @@ class WorkflowRepo:
         """
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(sql, (status, operator, channel, instance_id, user_id))
+                await cur.execute(sql, (status, operator, channel, instance_id, owner_user_id))
                 row = await cur.fetchone()
                 return dict(row) if row else None

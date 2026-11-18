@@ -89,13 +89,18 @@ async def submit_workflow(
 @router.get("")
 async def list_workflows(
     flow_code: str | None = Query(default=None),
+    scope: str = Query(default="mine", pattern="^(mine|all)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
     auth: AuthContext = Depends(get_current_auth),
     repo: WorkflowRepo = Depends(get_workflow_repo),
 ) -> dict[str, Any]:
+    # scope=all 仅 admin 可用（审批视图，可看到他人发起的流程）；普通用户固定只看自己的台账
+    if scope == "all" and auth.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可查看全量流程台账")
+    owner_filter = None if scope == "all" else auth.user_id
     return await repo.list_instances(
-        user_id=auth.user_id,
+        owner_user_id=owner_filter,
         flow_code=flow_code or None,
         page=page,
         page_size=page_size,
@@ -109,9 +114,17 @@ async def update_workflow_status(
     auth: AuthContext = Depends(get_current_auth),
     repo: WorkflowRepo = Depends(get_workflow_repo),
 ) -> dict[str, Any]:
+    # 审批规则：仅 admin 可审批，且不得审批自己发起的流程（防止自审自批）
+    if auth.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可审批流程")
+    instance = await repo.get_instance(instance_id)
+    if instance is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="流程实例不存在")
+    if instance["user_id"] == auth.user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="不得审批自己发起的流程")
     row = await repo.update_status_idempotent(
         instance_id=instance_id,
-        user_id=auth.user_id,
+        owner_user_id=instance["user_id"],
         status=body.status,
         operator=auth.username,
         channel=body.channel,

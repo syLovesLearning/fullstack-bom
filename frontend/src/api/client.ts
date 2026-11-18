@@ -309,6 +309,8 @@ export function getRunTrace(token: string, runId: string) {
 
 export interface WorkflowItem {
   id: string
+  user_id?: string
+  owner_name?: string
   flow_code: string
   title: string
   form_data: Record<string, unknown>
@@ -323,8 +325,9 @@ export interface WorkflowListResponse {
   page_size: number
 }
 
-export function listWorkflows(token: string, flowCode = '', page = 1, pageSize = 8) {
-  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+/** scope='all' 为管理员审批视图（可见他人发起的流程）；默认 'mine' 只看自己的台账。 */
+export function listWorkflows(token: string, flowCode = '', page = 1, pageSize = 8, scope: 'mine' | 'all' = 'mine') {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize), scope })
   if (flowCode) params.set('flow_code', flowCode)
   return request<WorkflowListResponse>(`/api/v1/workflows?${params.toString()}`, token)
 }
