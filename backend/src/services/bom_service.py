@@ -3,6 +3,7 @@
 from typing import Any
 from uuid import UUID
 
+from src.repositories import bom_maint_repo
 from src.repositories.bom_repo import BomRepo
 from src.services.bom_costing import BomCostingService
 from src.services.bom_seed import DEMO_RELATIONS, SEED_ITEMS
@@ -147,3 +148,17 @@ class BomService:
 
     async def check_stock(self, user_id: UUID, root_id: UUID, env: dict[str, float]) -> list[dict[str, Any]]:
         return await self._costing.check_stock(user_id, root_id, env)
+
+    async def where_used(self, user_id: UUID, item_id: UUID) -> list[dict[str, Any]]:
+        return await bom_maint_repo.list_where_used(self._repo._pool, user_id, item_id)
+
+    async def replace_item(self, user_id: UUID, old_id: UUID, new_id: UUID) -> int:
+        if old_id == new_id:
+            raise ValueError("旧物料与新物料不能相同")
+        refs = await bom_maint_repo.list_where_used(self._repo._pool, user_id, old_id)
+        for r in refs:
+            await self._assert_acyclic(user_id, r["parent_id"], [new_id])
+        return await bom_maint_repo.replace_child_item(self._repo._pool, user_id, old_id, new_id)
+
+    async def batch_adjust_price(self, user_id: UUID, category: str, pct_delta: float) -> int:
+        return await bom_maint_repo.batch_adjust_price(self._repo._pool, user_id, category, pct_delta)

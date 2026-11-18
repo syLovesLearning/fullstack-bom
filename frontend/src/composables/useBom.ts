@@ -11,7 +11,7 @@ const edges = ref<BomEdge[]>([])
 const rollup = ref<BomRollupResponse | null>(null)
 const quotes = ref<QuoteSnapshotItem[]>([])
 const stockItems = ref<StockCheckItem[]>([])
-const sandbox3d = ref({ h: 2200, w: 800, d: 600, t: 2.0 })
+const sandbox3d = ref({ h: 750, w: 1600, d: 800, t: 25 })
 const loading = ref(false)
 
 export function useBom() {
@@ -75,6 +75,19 @@ export function useBom() {
   }
   async function loadQuotes(token: string) {
     if (token) quotes.value = await listBomQuotes(token)
+  }
+  async function fetchWhereUsed(token: string, itemId: string) {
+    return whereUsedBomItem(token, itemId)
+  }
+  async function replaceItem(token: string, oldId: string, newId: string) {
+    const res = await replaceBomItem(token, oldId, newId)
+    await refreshItems(token)
+    return res.replaced_count
+  }
+  async function batchAdjustPrice(token: string, category: string, pctDelta: number) {
+    const res = await batchPriceBomItems(token, category, pctDelta)
+    await refreshItems(token)
+    return res.updated_count
   }
   async function seedDemo(token: string) {
     loading.value = true

@@ -8,7 +8,6 @@ from psycopg_pool import AsyncConnectionPool
 from src.repositories.bom_quote_repo import insert_quote_snapshot, list_quote_snapshots
 from src.repositories.bom_schema import run_v3_migration
 
-
 class BomRepo:
     def __init__(self, pool: AsyncConnectionPool) -> None:
         self._pool = pool

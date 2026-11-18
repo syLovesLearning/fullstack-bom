@@ -1,4 +1,4 @@
-"""FastAPI 依赖注入装配与 JWT 鉴权（解析 AuthContext 并写入 ContextVar）。"""
+"""FastAPI 依赖注入装配与 JWT 鉴权（解析 AuthContext 并实时同步角色权限）。"""
 
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -9,20 +9,21 @@ import jwt
 
 from src.config import settings
 from src.core.event_context import set_auth_context
+from src.repositories.bom_repo import BomRepo
 from src.repositories.doc_repo import DocRepo
+from src.repositories.inventory_repo import InventoryRepo
 from src.repositories.memory_repo import MemoryRepo
+from src.repositories.menu_repo import MenuRepo
+from src.repositories.role_repo import RoleRepo
 from src.repositories.session_repo import SessionRepo
 from src.repositories.trace_repo import TraceRepo
 from src.repositories.user_repo import UserRepo
-from src.repositories.inventory_repo import InventoryRepo
-from src.repositories.bom_repo import BomRepo
-from src.repositories.menu_repo import MenuRepo
 from src.repositories.workflow_repo import WorkflowRepo
 from src.schemas.models import AuthContext
+from src.services.bom_service import BomService
 from src.services.embedding_service import EmbeddingService
 from src.services.llm_service import LLMService
 from src.services.memory_service import MemoryService
-from src.services.bom_service import BomService
 from src.services.menu_service import MenuService
 from src.services.rag_service import RagService
 
@@ -61,11 +62,21 @@ def get_trace_repo(request: Request) -> TraceRepo:
 def get_doc_repo(request: Request) -> DocRepo:
     return DocRepo(request.app.state.pg_pool)
 
+
 def get_workflow_repo(request: Request) -> WorkflowRepo:
     return WorkflowRepo(request.app.state.pg_pool)
 
+
 def get_inventory_repo(request: Request) -> InventoryRepo:
     return InventoryRepo(request.app.state.pg_pool)
+
+
+def get_role_repo(request: Request) -> RoleRepo:
+    repo = getattr(request.app.state, "role_repo", None)
+    if repo is None:
+        repo = RoleRepo(request.app.state.pg_pool)
+        request.app.state.role_repo = repo
+    return repo
 
 
 def get_memory_service(
@@ -96,16 +107,19 @@ def get_rag_service(
 
 async def get_current_auth(
     cred: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    role_repo: RoleRepo = Depends(get_role_repo),
 ) -> AuthContext:
     if cred is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Bearer token")
     try:
         payload = jwt.decode(cred.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        role = payload.get("role", "user")
+        live_tools = await role_repo.get_allowed_tools(role)
         auth = AuthContext(
             user_id=UUID(payload["sub"]),
             username=payload["username"],
-            role=payload.get("role", "user"),
-            allowed_tools=payload.get("allowed_tools", ["rag_search"]),
+            role=role,
+            allowed_tools=live_tools if live_tools is not None else payload.get("allowed_tools", ["rag_search"]),
             groups=payload.get("groups", ["public"]),
         )
     except Exception as exc:
@@ -116,7 +130,6 @@ async def get_current_auth(
 
 
 def get_bom_repo(request: Request) -> BomRepo:
-    # 单例复用：lifespan 已预热迁移并缓存到 app.state.bom_repo
     repo = getattr(request.app.state, "bom_repo", None)
     if repo is None:
         pool = getattr(request.app.state, "bom_pool", None) or request.app.state.pg_pool
@@ -130,7 +143,6 @@ def get_bom_service(repo: BomRepo = Depends(get_bom_repo), inv_repo: InventoryRe
 
 
 def get_menu_repo(request: Request) -> MenuRepo:
-    # 单例复用：lifespan 已完成建表+种子预热并缓存到 app.state.menu_repo
     repo = getattr(request.app.state, "menu_repo", None)
     if repo is None:
         repo = MenuRepo(request.app.state.pg_pool)

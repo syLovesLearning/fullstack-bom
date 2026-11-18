@@ -1,4 +1,4 @@
-"""声明式工具注册表：基于 Pydantic Schema 自动生成描述并校验入参。"""
+"""声明式工具注册表：基于 Pydantic Schema 自动生成描述、校验入参并执行角色权限兜底。"""
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -55,7 +55,14 @@ class ToolRegistry:
             )
         return schemas
 
-    async def execute(self, name: str, raw_args: dict[str, Any]) -> str:
+    async def execute(
+        self,
+        name: str,
+        raw_args: dict[str, Any],
+        allowed_tools: list[str] | None = None,
+    ) -> str:
+        if allowed_tools is not None and "*" not in allowed_tools and name not in allowed_tools:
+            return json.dumps({"error": f"权限不足：当前角色无权调用工具 '{name}'"}, ensure_ascii=False)
         tool = self._tools.get(name)
         if tool is None:
             return json.dumps({"error": f"Tool '{name}' is not registered"}, ensure_ascii=False)

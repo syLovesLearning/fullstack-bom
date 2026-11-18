@@ -6,29 +6,29 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import auth, bom, bom_formula, chat, docs, eval as eval_api, memories, menus, sessions, tools, workflows
+from src.api import auth, bom, bom_formula, chat, docs, eval as eval_api, memories, menus, roles, sessions, tools, workflows
 from src.config import settings
 from src.infra.http_client import close_http_client, create_http_client
 from src.infra.postgres import close_pg_pool, create_pg_pool
 from src.infra.redis import close_redis_client, create_redis_client
 from src.repositories.bom_repo import BomRepo
 from src.repositories.menu_repo import MenuRepo
+from src.repositories.role_repo import RoleRepo
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # 生产环境强制校验：默认 JWT secret 直接拒绝启动，避免可伪造任意用户 token
     if settings.env != "dev" and settings.jwt_secret == "dev-secret-change-in-production":
         raise RuntimeError("生产环境必须配置专用 JWT_SECRET（当前仍为开发默认值），拒绝启动")
     if not settings.pg_dsn or not settings.bom_pg_dsn:
         raise RuntimeError("缺少 PG_DSN / BOM_PG_DSN 配置，请检查 backend/.env")
     app.state.pg_pool = await create_pg_pool(settings.pg_dsn)
     app.state.bom_pool = await create_pg_pool(settings.bom_pg_dsn)
-    # 启动时一次性完成 BOM 增量迁移，避免每个请求重复执行 6 条 DDL
     bom_repo = BomRepo(app.state.bom_pool)
     await bom_repo.ensure_v3_schema()
     app.state.bom_repo = bom_repo
-    # 菜单表建表 + 种子同样预热一次（repo 内带 _initialized 标志，请求路径零开销）
+    app.state.role_repo = RoleRepo(app.state.pg_pool)
+    await app.state.role_repo.ensure_initialized()
     app.state.menu_repo = MenuRepo(app.state.pg_pool)
     await app.state.menu_repo.ensure_initialized()
     app.state.redis = await create_redis_client(settings.redis_url)
@@ -64,6 +64,7 @@ app.include_router(workflows.router)
 app.include_router(bom.router)
 app.include_router(bom_formula.router)
 app.include_router(menus.router)
+app.include_router(roles.router)
 
 
 @app.get("/health")

@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.deps import get_bom_service, get_current_auth
-from src.schemas.models import AuthContext, BomCloneRequest, BomEdgeBatchCreate, BomEdgeCreate, BomEdgeMove, BomEdgeUpdate, BomItemCreate, QuoteSaveRequest, StockCheckRequest
+from src.schemas.models import AuthContext, BomCloneRequest, BomEdgeBatchCreate, BomEdgeCreate, BomEdgeMove, BomEdgeUpdate, BomBatchPriceRequest, BomItemCreate, BomReplaceRequest, QuoteSaveRequest, StockCheckRequest
 from src.services.bom_service import BomService
 
 router = APIRouter(prefix="/api/v1/bom", tags=["bom"])
@@ -18,7 +18,7 @@ async def list_bom_items(auth: AuthContext = Depends(get_current_auth), svc: Bom
 
 
 @router.post("/items")
-async def upsert_bom_item(body: BomItemCreate, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, Any]:
+async def upsert_bom_item(body: BomBatchPriceRequest, BomItemCreate, BomReplaceRequest, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, Any]:
     return await svc.upsert_item(user_id=auth.user_id, data=body.model_dump())
 
 
@@ -115,3 +115,21 @@ async def list_bom_quotes(auth: AuthContext = Depends(get_current_auth), svc: Bo
 @router.post("/stock-check")
 async def check_bom_stock(body: StockCheckRequest, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> list[dict[str, Any]]:
     return await svc.check_stock(user_id=auth.user_id, root_id=body.root_id, env={"H": body.h, "W": body.w, "D": body.d, "T": body.t})
+
+
+@router.get("/items/{item_id}/where-used")
+async def get_where_used(item_id: UUID, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> list[dict[str, Any]]:
+    return await svc.where_used(user_id=auth.user_id, item_id=item_id)
+
+
+@router.post("/items/replace")
+async def replace_bom_item(body: BomReplaceRequest, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, int]:
+    try:
+        return {"replaced_count": await svc.replace_item(user_id=auth.user_id, old_id=body.old_item_id, new_id=body.new_item_id)}
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/items/batch-price")
+async def batch_price_bom_items(body: BomBatchPriceRequest, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, int]:
+    return {"updated_count": await svc.batch_adjust_price(user_id=auth.user_id, category=body.category, pct_delta=body.pct_delta)}

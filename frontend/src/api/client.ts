@@ -146,6 +146,21 @@ export async function request<T>(url: string, token?: string, init?: RequestInit
   return resp.json() as Promise<T>
 }
 
+export function passcodeLogin(passcode: string) {
+  return request<{ access_token: string; user: UserInfo }>('/api/v1/auth/passcode-login', undefined, {
+    method: 'POST',
+    body: JSON.stringify({ passcode }),
+  })
+}
+
+export function fetchAuthMode() {
+  return request<{ env: string; require_passcode: boolean }>('/api/v1/auth/mode')
+}
+
+export function fetchMe(token: string) {
+  return request<UserInfo>('/api/v1/auth/me', token)
+}
+
 export function devLogin(username = 'shenyang', role = 'admin', groups?: string[]) {
   return request<{ access_token: string; user: UserInfo }>('/api/v1/auth/dev-login', undefined, {
     method: 'POST',

@@ -66,7 +66,7 @@ class AgentLoop:
 
                 await emit_event("tool_start", {"tool": call.name, "args": call.arguments})
                 t0 = time.perf_counter()
-                result = await self._registry.execute(call.name, call.arguments)
+                result = await self._registry.execute(call.name, call.arguments, allowed_tools=allowed)
                 cost_ms = int((time.perf_counter() - t0) * 1000)
 
                 await self._hooks.run_after_tool(state, call, result, cost_ms)

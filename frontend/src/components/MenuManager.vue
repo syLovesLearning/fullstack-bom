@@ -1,29 +1,32 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { fetchAllMenus, updateSysMenu, type SysMenuItem } from '../api/client'
+import { fetchRoles } from '../api/roles'
 
 const props = defineProps<{ token: string }>()
 const emit = defineEmits<{ menusUpdated: [] }>()
 
 const menus = ref<SysMenuItem[]>([])
+const roleCodes = ref<string[]>(['admin', 'user', 'readonly', 'external_guest'])
 const loading = ref(false)
 const savingKey = ref('')
 const msg = ref('')
 
-const ALL_ROLES = ['admin', 'user', 'readonly', 'external_guest']
 const GROUPS = ['工作台', '业务中心', 'AI 与记忆', '系统管理']
 
 async function loadAll() {
   loading.value = true
   try {
-    menus.value = await fetchAllMenus(props.token)
+    const [mList, rList] = await Promise.all([fetchAllMenus(props.token), fetchRoles(props.token).catch(() => [])])
+    menus.value = mList
+    if (rList.length) roleCodes.value = rList.map((r) => r.role_code)
   } finally {
     loading.value = false
   }
 }
 
 function toggleRole(item: SysMenuItem, role: string) {
-  if (item.menu_key === 'menu_admin' && role === 'admin') return
+  if ((item.menu_key === 'menu_admin' || item.menu_key === 'role_admin') && role === 'admin') return
   const idx = item.allowed_roles.indexOf(role)
   if (idx >= 0) item.allowed_roles.splice(idx, 1)
   else item.allowed_roles.push(role)
@@ -92,11 +95,11 @@ onMounted(loadAll)
             <td><input v-model.number="m.sort_order" type="number" class="inp-sm" style="width: 64px" /></td>
             <td>
               <div class="role-tags">
-                <label v-for="r in ALL_ROLES" :key="r" class="role-chk">
+                <label v-for="r in roleCodes" :key="r" class="role-chk">
                   <input
                     type="checkbox"
                     :checked="m.allowed_roles.includes(r)"
-                    :disabled="m.menu_key === 'menu_admin' && r === 'admin'"
+                    :disabled="(m.menu_key === 'menu_admin' || m.menu_key === 'role_admin') && r === 'admin'"
                     @change="toggleRole(m, r)"
                   />
                   {{ r }}
@@ -107,7 +110,7 @@ onMounted(loadAll)
               <input
                 v-model="m.is_enabled"
                 type="checkbox"
-                :disabled="m.menu_key === 'menu_admin'"
+                :disabled="m.menu_key === 'menu_admin' || m.menu_key === 'role_admin'"
               />
             </td>
             <td>

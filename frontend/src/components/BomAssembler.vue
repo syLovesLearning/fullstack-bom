@@ -185,12 +185,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 .hint { color: var(--muted); font-size: 11px; }
 .crumbs { font-size: 11px; color: #1d4ed8; }
 .total { margin-left: auto; font-size: 12px; } .total b { font-size: 14px; color: #b45309; }
-.cols { display: grid; grid-template-columns: 210px minmax(0, 1fr) 260px; gap: 12px; align-items: start; }
+.cols { display: grid; grid-template-columns: 195px minmax(0, 1fr) 250px; gap: 10px; align-items: start; }
+.cols > * { min-width: 0; }
 .canvas { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; min-height: 420px; }
 .c-title { margin: 0 0 10px; font-size: 13px; font-weight: 500; }
 .c-title span { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 8px; }
 .c-empty { font-size: 12px; color: var(--muted); padding: 40px 12px; text-align: center; line-height: 1.8; }
 .ok-line { color: #047857; background: #ecfdf5; padding: 8px 12px; border-radius: 8px; font-size: 12px; margin: 0; }
 .err-line { color: var(--err); background: var(--err-soft); padding: 8px 12px; border-radius: 8px; font-size: 12px; margin: 0; }
-@media (max-width: 1100px) { .cols { grid-template-columns: 180px minmax(0, 1fr); } .canvas { min-height: 360px; } }
+@media (max-width: 1280px) { .cols { grid-template-columns: 180px minmax(0, 1fr); } .canvas { min-height: 360px; } }
 </style>

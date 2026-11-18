@@ -4,6 +4,8 @@
 
 ## 1. 鉴权与会话
 
+- `GET /auth/mode` -> `{env, require_passcode}`（dev 免密直入，prod 强制密钥解锁）
+- `POST /auth/passcode-login` -> `{passcode}` -> `{access_token, token_type, user}`（简历访客密钥登录，生产可用）
 - `POST /auth/dev-login` -> `{username, role}` -> `{access_token, token_type, user}`（**仅 `ENV=dev` 可用**；非 dev 环境返回 403）
 - `GET /auth/me` -> `AuthContext`
 - `POST /auth/register` -> `{username, password, role, groups}` -> `{access_token, user}`（**role 白名单：`user`/`readonly`/`external_guest`**；传 `admin` 返回 422/403，管理员只能由库内提权）
@@ -81,3 +83,7 @@
 - `GET /menus` -> `SysMenuItem[]`（按当前 `AuthContext.role` 与 `is_enabled = TRUE` 过滤并按 `sort_order` 排序）
 - `GET /menus/all` -> `SysMenuItem[]`（管理员查看全部菜单配置项）
 - `PUT /menus/{menu_key}` -> `SysMenuUpdate` -> `SysMenuItem`（动态修改菜单标题、分组、排序、角色白名单与启停状态）
+
+- `GET /bom/items/{item_id}/where-used` -> `WhereUsedItem[]`（物料反查：列出所有引用该物料的父级 BOM）
+- `POST /bom/items/replace` -> `{old_item_id, new_item_id}` -> `{replaced_count: int}`（跨 BOM 批量替料，含环路校验）
+- `POST /bom/items/batch-price` -> `{category, pct_delta}` -> `{updated_count: int}`（按大类批量调价百分比）

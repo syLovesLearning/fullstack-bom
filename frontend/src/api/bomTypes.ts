@@ -113,3 +113,13 @@ export interface FormulaCheckResult {
   value: number | null
   error: string
 }
+
+export interface WhereUsedItem {
+  parent_id: string
+  parent_sku: string
+  parent_name: string
+  parent_category: string
+  edge_id: string
+  qty_mode: string
+  base_qty: number
+}

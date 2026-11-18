@@ -28,7 +28,7 @@ class WorkflowDefinitionUpsert(BaseModel):
     flow_code: str = Field(min_length=2, max_length=64, pattern=r"^[a-z0-9_]+$")
     name: str = Field(min_length=2, max_length=100)
     description: str = ""
-    allowed_roles: list[Literal["admin", "user", "readonly", "external_guest"]] = Field(
+    allowed_roles: list[str] = Field(
         default_factory=lambda: ["admin", "user"]
     )
     fields: list[dict[str, Any]] = Field(min_length=1)

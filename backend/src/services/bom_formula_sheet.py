@@ -1,6 +1,7 @@
 """测试数据模板生成与上传解析：openpyxl 显式读写 xlsx，另兼容 csv。"""
 
 import csv
+import zipfile
 from io import BytesIO, StringIO
 from typing import Any
 
@@ -100,6 +101,12 @@ def _rows_from_csv(content: bytes) -> list[list[Any]]:
 
 
 def _rows_from_xlsx(content: bytes) -> list[list[Any]]:
+    try:
+        with zipfile.ZipFile(BytesIO(content)) as zf:
+            if sum(i.file_size for i in zf.infolist()) > 10 * 1024 * 1024:
+                raise ValueError("表格解压体积超过 10MB，疑似异常压缩文件")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("无效的 xlsx 文件格式") from exc
     wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
     ws = wb.worksheets[0]
     rows = [[cell for cell in row] for row in ws.iter_rows(values_only=True)]

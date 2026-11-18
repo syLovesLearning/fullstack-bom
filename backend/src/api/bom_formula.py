@@ -55,7 +55,14 @@ async def download_template(
 @router.post("/parse-sheet")
 async def parse_uploaded_sheet(file: UploadFile = File(...), auth: AuthContext = Depends(get_current_auth)) -> dict[str, Any]:
     """上传填写好的 xlsx/csv，解析为结构化测试行供前端预览与编辑。"""
-    content = await file.read()
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(65536):
+        total += len(chunk)
+        if total > 2 * 1024 * 1024:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="文件超过 2MB 上限")
+        chunks.append(chunk)
+    content = b"".join(chunks)
     try:
         return parse_sheet(file.filename or "", content)
     except ValueError as exc:

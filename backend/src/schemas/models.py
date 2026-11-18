@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 class AuthContext(BaseModel):
     user_id: UUID
     username: str
-    role: Literal["admin", "user", "readonly", "external_guest"] = "user"
+    role: str = "user"
     allowed_tools: list[str] = Field(default_factory=lambda: ["rag_search"])
     groups: list[str] = Field(default_factory=lambda: ["public"])
 
@@ -43,7 +43,7 @@ class SSEEvent(BaseModel):
 
 class DevLoginRequest(BaseModel):
     username: str = "shenyang"
-    role: Literal["admin", "user", "readonly", "external_guest"] = "admin"
+    role: str = "admin"
     groups: list[str] | None = None
 
 
@@ -53,6 +53,10 @@ class RegisterRequest(BaseModel):
     # 安全约束：注册不允许自选 admin，管理员只能由已有管理员在库内提权
     role: Literal["user", "readonly", "external_guest"] = "user"
     groups: list[str] = Field(default_factory=lambda: ["public"])
+
+
+class PasscodeLoginRequest(BaseModel):
+    passcode: str = Field(min_length=1, max_length=64)
 
 
 class LoginRequest(BaseModel):
@@ -166,3 +170,19 @@ class SysMenuUpdate(BaseModel):
     sort_order: int = Field(default=10, ge=1, le=999)
     allowed_roles: list[str] = Field(default_factory=lambda: ["admin", "user"])
     is_enabled: bool = True
+
+class BomReplaceRequest(BaseModel):
+    old_item_id: UUID
+    new_item_id: UUID
+
+
+class BomBatchPriceRequest(BaseModel):
+    category: Literal["PRODUCT", "SEMI_FINISHED", "BASE_MATERIAL", "OUTSOURCED", "LABOR", "MACHINE"]
+    pct_delta: float = Field(ge=-50.0, le=200.0)
+
+
+class SysRoleUpsert(BaseModel):
+    role_code: str = Field(min_length=2, max_length=40, pattern=r"^[a-z0-9_]+$")
+    role_name: str = Field(min_length=1, max_length=64)
+    description: str = Field(default="", max_length=256)
+    allowed_tools: list[str] = Field(default_factory=list)

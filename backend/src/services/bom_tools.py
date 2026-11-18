@@ -93,3 +93,28 @@ def register_bom_tools(registry: ToolRegistry, bom_service: BomService) -> None:
         if lack_cards:
             await emit_event("action_cards", {"items": lack_cards})
         return json.dumps({"ok": True, "root": root["name"], "params_3d": env, "items": items}, ensure_ascii=False)
+
+    @registry.register(
+        name="bom_save_quote",
+        description="按 3D 参数试算并冻结保存正式报价快照到 bom_db.quote_snapshots，返回报价单号。",
+        args_model=BomQuoteArgs,
+    )
+    async def bom_save_quote_tool(args: BomQuoteArgs) -> str:
+        auth = get_auth_context()
+        if auth is None:
+            return json.dumps({"ok": False, "error": "缺少用户身份上下文"}, ensure_ascii=False)
+        root = _match_root_item(await bom_service.list_items(auth.user_id), args.root_keyword)
+        if root is None:
+            return json.dumps({"ok": False, "error": f"未找到匹配 '{args.root_keyword}' 的 BOM 物料"}, ensure_ascii=False)
+        try:
+            snap = await bom_service.save_quote(auth.user_id, {
+                "root_id": root["id"], "h": args.h, "w": args.w, "d": args.d, "t": args.t,
+                "margin_rate": args.margin_rate, "tax_rate": args.tax_rate, "note": "AI 智能体自动生成快照",
+            })
+        except ValueError as exc:
+            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+        await emit_event("action_cards", {"items": [{
+            "kind": "bom_quote", "root_name": f"{root['name']} ({snap['quote_no']})",
+            "direct_cost": snap["direct_cost"], "final_price": snap["final_price"],
+        }]})
+        return json.dumps({"ok": True, **snap}, ensure_ascii=False, default=str)

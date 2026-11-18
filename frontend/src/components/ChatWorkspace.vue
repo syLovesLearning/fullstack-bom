@@ -16,15 +16,14 @@ import {
   type SessionItem,
 } from '../api/client'
 import { useAgentStream } from '../composables/useAgentStream'
+import { useChatSession } from '../composables/useChatSession'
 import { useMemories } from '../composables/useMemories'
 import { renderMarkdown } from '../utils/markdown'
 
 const props = defineProps<{ token: string }>()
 const emit = defineEmits<{ goWorkflow: [] }>()
 
-const sessions = ref<SessionItem[]>([])
-const activeSessionId = ref('')
-const messages = ref<MessageItem[]>([])
+const { sessions, activeSessionId, messages, ensureSession: ensureSharedSession, selectSession: selectSharedSession } = useChatSession()
 const input = ref('')
 const streamEl = ref<HTMLElement | null>(null)
 
@@ -61,18 +60,11 @@ function scrollBottom() {
 }
 
 async function loadSessions() {
-  sessions.value = await listSessions(props.token)
-  if (!sessions.value.length) {
-    const created = await createSession(props.token, '默认对话')
-    sessions.value = [created]
-  }
-  await selectSession(sessions.value[0].id)
+  await ensureSharedSession(props.token)
 }
 
 async function selectSession(sid: string) {
-  activeSessionId.value = sid
-  const rows = await listSessionMessages(props.token, sid)
-  messages.value = rows.filter((m) => m.role === 'user' || m.role === 'assistant')
+  await selectSharedSession(props.token, sid)
   scrollBottom()
 }
 
@@ -150,6 +142,7 @@ async function initWorkspace() {
   await Promise.all([loadSessions(), refreshMemories(props.token)])
 }
 
+watch([() => messages.value.length, answer, streaming], scrollBottom)
 watch(() => props.token, initWorkspace)
 onMounted(initWorkspace)
 </script>
@@ -261,6 +254,15 @@ onMounted(initWorkspace)
               </template>
             </div>
           </div>
+        </div>
+
+        <div v-if="streaming" class="msg assistant">
+          <div class="msg-head">智能体 · 思考与执行中</div>
+          <div class="trace-inline" style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:12px;color:#2563eb;">
+            <div v-for="(t, ti) in traces" :key="ti">▸ {{ t.detail }}</div>
+            <div v-if="!traces.length">▸ 正在连接智能体推理引擎...</div>
+          </div>
+          <div class="msg-body" v-html="renderMarkdown(answer || '生成中...')"></div>
         </div>
       </div>
 

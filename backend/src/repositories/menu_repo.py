@@ -14,6 +14,7 @@ DEFAULT_MENUS: list[tuple[str, str, str, str, int, list[str], bool]] = [
     ("eval", "黄金测试集", "系统管理", "★", 80, ["admin", "user", "readonly"], True),
     ("api", "接口测试台", "系统管理", "⌘", 90, ["admin", "user"], True),
     ("menu_admin", "动态菜单配置", "系统管理", "⚙", 100, ["admin"], True),
+    ("role_admin", "角色与能力", "系统管理", "⛨", 105, ["admin"], True),
 ]
 
 
@@ -41,18 +42,15 @@ class MenuRepo:
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(ddl)
-                await cur.execute("SELECT COUNT(*) AS cnt FROM sys_menus;")
-                row = await cur.fetchone()
-                if row and row["cnt"] == 0:
-                    for item in DEFAULT_MENUS:
-                        await cur.execute(
-                            """
-                            INSERT INTO sys_menus (menu_key, title, group_name, icon, sort_order, allowed_roles, is_enabled)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (menu_key) DO NOTHING;
-                            """,
-                            item,
-                        )
+                for item in DEFAULT_MENUS:
+                    await cur.execute(
+                        """
+                        INSERT INTO sys_menus (menu_key, title, group_name, icon, sort_order, allowed_roles, is_enabled)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (menu_key) DO NOTHING;
+                        """,
+                        item,
+                    )
         self._initialized = True
 
     async def list_for_role(self, role: str) -> list[dict[str, Any]]:

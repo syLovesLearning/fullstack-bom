@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     bom_pg_dsn: str = ""
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = "dev-secret-change-in-production"
+    resume_access_key: str = "18968112970"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 

@@ -1,9 +1,17 @@
 <script setup lang="ts">
 const emit = defineEmits<{
-  navigate: [tab: 'overview' | 'chat' | 'workflow' | 'mem' | 'lab' | 'kb' | 'eval' | 'api']
+  navigate: [tab: 'overview' | 'bom' | 'chat' | 'workflow' | 'mem' | 'lab' | 'kb' | 'eval' | 'api']
 }>()
 
 const aiDimensions = [
+  {
+    badge: '核心亮点 · 3D 工业 BOM',
+    title: 'Three.js 参数化装配 + 工程算料与余料阈值',
+    pain: '传统痛点：ERP 只管静态清单，非标算料靠手算 Excel，余料报废与空间干涉全凭经验。',
+    solution: '全栈方案：独立 bom_db 递归算价（200 节点 < 5ms）+ AST 安全公式/AI 口述编译 + Box3 碰撞检测 + 跨库查库存与带图报价单打印。',
+    tab: 'bom' as const,
+    cta: '1 分钟体验 3D BOM 工作台 →',
+  },
   {
     badge: '维度一 · 交互革命',
     title: '对话式流程发起与卡片直办',
@@ -73,13 +81,14 @@ const quickEntries = [
     <!-- 顶部核心价值定位（面向业务与面试展示） -->
     <header class="hero">
       <div class="hero-left">
-        <span class="badge badge-blue">Enterprise AI Workflow &amp; RAG Platform</span>
-        <h1>企业级 AI 业务流程与知识协同工作台</h1>
+        <span class="badge badge-blue">AI-Native Engineering · 3 天协作交付全栈与 3D 工业原型</span>
+        <h1>用 AI 快速造出公司需要的工具，把“廉价工具的积累”变成核心资产</h1>
         <p class="sub">
-          围绕「让 AI 真正融入企业 OA / SRM / 库存 / 知识库」构建：前端多维交互直达业务，后端全链路透明可审计、按角色与分组严格隔离。
+          你现在看到的整套系统（3D 参数化 BOM 算料、AST 公式引擎、跨库库存、OA/SRM 审批、RAG 知识库与长期记忆），只是借助 AI 耗时 3 天完成的结果。随着 AI 能力不断进化，低成本定制工具的持续沉淀将成为企业的巨大财富——而我可以帮你加速这一过程。
         </p>
         <div class="hero-actions">
-          <button class="btn btn-primary" @click="emit('navigate', 'chat')">进入 AI 对话实战</button>
+          <button class="btn btn-primary" @click="emit('navigate', 'bom')">体验 3D BOM 工作台</button>
+          <button class="btn" @click="emit('navigate', 'chat')">进入 AI 对话实战</button>
           <button class="btn" @click="emit('navigate', 'workflow')">体验 OA / SRM 流程中心</button>
           <button
             v-for="q in quickEntries"

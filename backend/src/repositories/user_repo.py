@@ -36,9 +36,11 @@ class UserRepo:
         self._pool = pool
 
     async def get_or_create_dev_user(
-        self, username: str, role: str = "admin", groups: list[str] | None = None
+        self, username: str, role: str = "admin", groups: list[str] | None = None, allowed_tools: list[str] | None = None
     ) -> dict[str, Any]:
-        if role in ("admin", "user"):
+        if allowed_tools is not None:
+            default_tools = allowed_tools
+        elif role in ("admin", "user"):
             default_tools = ["rag_search", "memory_save", "submit_workflow_form", "query_recent_workflows", "query_inventory", "bom_quote", "bom_stock_check"]
         elif role == "external_guest":
             default_tools = ["rag_search", "submit_workflow_form", "query_recent_workflows"]

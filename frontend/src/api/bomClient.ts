@@ -5,7 +5,7 @@
 import { request } from './client'
 import type {
   BomEdge, BomEdgeRule, BomItem, BomRollupResponse, FormulaCheckResult,
-  QuoteSnapshotItem, StockCheckItem,
+  QuoteSnapshotItem, StockCheckItem, WhereUsedItem,
 } from './bomTypes'
 export * from './bomTypes'
 
@@ -94,5 +94,23 @@ export function checkBomFormula(token: string, expr: string, env?: { H: number; 
   return request<FormulaCheckResult>('/api/v1/bom/formula/check', token, {
     method: 'POST',
     body: JSON.stringify({ expr, env: env ?? { H: 2200, W: 800, D: 600, T: 2.0 } }),
+  })
+}
+
+export function whereUsedBomItem(token: string, itemId: string) {
+  return request<WhereUsedItem[]>(`/api/v1/bom/items/${itemId}/where-used`, token)
+}
+
+export function replaceBomItem(token: string, old_item_id: string, new_item_id: string) {
+  return request<{ replaced_count: number }>('/api/v1/bom/items/replace', token, {
+    method: 'POST',
+    body: JSON.stringify({ old_item_id, new_item_id }),
+  })
+}
+
+export function batchPriceBomItems(token: string, category: string, pct_delta: number) {
+  return request<{ updated_count: number }>('/api/v1/bom/items/batch-price', token, {
+    method: 'POST',
+    body: JSON.stringify({ category, pct_delta }),
   })
 }

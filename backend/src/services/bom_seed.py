@@ -1,29 +1,49 @@
-"""BOM 演示种子数据：示例机柜多级 BOM（物料清单与父子关系定义）。"""
+"""两个直观真实的演示 BOM：1) 定制金属工业工作台 (PROD-DESK-01)  2) 四层重型仓储货架 (PROD-RACK-01)。"""
 
 from typing import Any
 
 SEED_ITEMS: list[dict[str, Any]] = [
-    {"sku_code": "PROD-GGD-01", "name": "GGD标准低压配电柜", "category": "PRODUCT", "sub_type": "STANDARD", "unit": "台", "base_price": 0.0},
-    {"sku_code": "SEMI-FRAME-01", "name": "柜体钣金骨架(半成品)", "category": "SEMI_FINISHED", "sub_type": "STANDARD", "unit": "套", "base_price": 0.0},
-    {"sku_code": "SEMI-DRAWER-01", "name": "标准抽屉单元(半成品)", "category": "SEMI_FINISHED", "sub_type": "STANDARD", "unit": "套", "base_price": 0.0},
-    {"sku_code": "MAT-STEEL-2MM", "name": "2.0mm冷轧钢板(整块200kg)", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "kg", "base_price": 5.8},
-    {"sku_code": "MAT-COPPER-BAR", "name": "TMY主母线铜排", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "kg", "base_price": 86.0},
-    {"sku_code": "OUT-BREAKER-250", "name": "塑壳断路器3P-250A(外购)", "category": "OUTSOURCED", "sub_type": "FIXED", "unit": "台", "base_price": 680.0},
-    {"sku_code": "LAB-INT-ASSY", "name": "内部装配与二次接线(人工-内)", "category": "LABOR", "sub_type": "INTERNAL", "unit": "工时", "base_price": 65.0},
-    {"sku_code": "LAB-EXT-PAINT", "name": "外协静电喷塑(人工-外/特殊工艺)", "category": "LABOR", "sub_type": "EXTERNAL", "unit": "㎡", "base_price": 35.0},
-    {"sku_code": "MAC-LASER-CUT", "name": "光纤激光切割台班(机械)", "category": "MACHINE", "sub_type": "SPECIAL_PROCESS", "unit": "台班", "base_price": 180.0},
+    # --- 成品 ---
+    {"sku_code": "PROD-DESK-01", "name": "定制金属工业工作台", "category": "PRODUCT", "sub_type": "STANDARD", "unit": "张", "base_price": 0.0},
+    {"sku_code": "PROD-RACK-01", "name": "四层重型仓储货架", "category": "PRODUCT", "sub_type": "STANDARD", "unit": "组", "base_price": 0.0},
+    # --- 半成品 ---
+    {"sku_code": "SEMI-DESK-FRAME", "name": "焊接钢制桌架(半成品)", "category": "SEMI_FINISHED", "sub_type": "STANDARD", "unit": "套", "base_price": 0.0},
+    {"sku_code": "SEMI-RACK-UPRIGHT", "name": "货架立柱片组件(半成品)", "category": "SEMI_FINISHED", "sub_type": "STANDARD", "unit": "片", "base_price": 0.0},
+    {"sku_code": "SEMI-RACK-LAYER", "name": "货架单层横梁层板(半成品)", "category": "SEMI_FINISHED", "sub_type": "STANDARD", "unit": "层", "base_price": 0.0},
+    # --- 基材 (固定 / 非固定) ---
+    {"sku_code": "MAT-WOOD-25", "name": "25mm实木橡木桌面(整板3.0㎡)", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "㎡", "base_price": 260.0},
+    {"sku_code": "MAT-TUBE-40", "name": "40×40镀锌方管(整根6m)", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "m", "base_price": 28.0},
+    {"sku_code": "MAT-BEAM-MID", "name": "桌面防塌腰加强横梁", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "根", "base_price": 45.0},
+    {"sku_code": "MAT-C-STEEL", "name": "80×60C型钢立柱(整根6m)", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "m", "base_price": 42.0},
+    {"sku_code": "MAT-BEAM-ORANGE", "name": "重型抱焊橙色横梁", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "m", "base_price": 36.0},
+    {"sku_code": "MAT-DECK-STEEL", "name": "镀锌钢制层板(整张2.4㎡)", "category": "BASE_MATERIAL", "sub_type": "NON_FIXED", "unit": "㎡", "base_price": 115.0},
+    # --- 外购五金 ---
+    {"sku_code": "OUT-FOOT-PAD", "name": "重型防滑调节脚垫+角码包", "category": "OUTSOURCED", "sub_type": "FIXED", "unit": "套", "base_price": 38.0},
+    {"sku_code": "OUT-ANCHOR-BOLT", "name": "膨胀地脚螺栓+安全插销套组", "category": "OUTSOURCED", "sub_type": "FIXED", "unit": "套", "base_price": 32.0},
+    # --- 人工 (内 / 外) & 机械 ---
+    {"sku_code": "LAB-WELD-INT", "name": "车间下料与氩弧焊接(人工-内)", "category": "LABOR", "sub_type": "INTERNAL", "unit": "工时", "base_price": 65.0},
+    {"sku_code": "LAB-SPRAY-EXT", "name": "外协静电喷塑烤漆(人工-外)", "category": "LABOR", "sub_type": "EXTERNAL", "unit": "㎡", "base_price": 35.0},
+    {"sku_code": "MAC-CNC-EDGE", "name": "数控开孔与封边台班(机械)", "category": "MACHINE", "sub_type": "SPECIAL_PROCESS", "unit": "台班", "base_price": 90.0},
 ]
 
-# (父SKU, 子SKU, 计量模式, 基础用量, 3D公式, 附加成本公式, 余料策略, 整包量, 余料阈值, 损耗率, 浮动系数, BOM分组, 成本分组)
-DEMO_RELATIONS: list[tuple[str, str, str, float, str, str, str, float, float, float, float, str, str]] = [
-    ("PROD-GGD-01", "SEMI-FRAME-01", "FIXED", 1.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "半成品"),
-    ("PROD-GGD-01", "SEMI-DRAWER-01", "FIXED", 2.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "半成品"),
-    ("PROD-GGD-01", "MAT-COPPER-BAR", "FORMULA_3D", 14.5, "(dist3d(0, H*0.8, 0, W*0.9, H*0.2, D*0.8) / 1000.0) * 6.8", "iif(W >= 1000, 120, 0)", "CONTINUOUS", 1.0, 0.0, 0.05, 1.0, "材料", "基材"),
-    ("PROD-GGD-01", "OUT-BREAKER-250", "FIXED", 1.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "基材"),
-    ("PROD-GGD-01", "LAB-INT-ASSY", "FIXED", 4.5, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "人工", "人工费"),
-    ("PROD-GGD-01", "MAC-LASER-CUT", "FIXED", 1.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "机械", "人工费"),
-    ("SEMI-FRAME-01", "MAT-STEEL-2MM", "FORMULA_3D", 180.0, "(2*(H*W + H*D + W*D) / 1000000.0) * T * 7.85", "", "THRESHOLD_SCRAP", 200.0, 50.0, 0.0, 1.0, "材料", "基材"),
-    ("SEMI-FRAME-01", "LAB-EXT-PAINT", "FORMULA_3D", 9.6, "(2*(H*W + H*D) / 1000000.0) * 1.4", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "人工", "人工费"),
-    ("SEMI-DRAWER-01", "MAT-STEEL-2MM", "FIXED", 13.5, "", "", "CONTINUOUS", 1.0, 0.0, 0.08, 1.0, "材料", "基材"),
-    ("SEMI-DRAWER-01", "LAB-INT-ASSY", "FIXED", 1.2, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "人工", "人工费"),
+DEMO_RELATIONS: list[tuple[Any, ...]] = [
+    # 1. 定制金属工业工作台 (H=桌高750, W=桌长1600, D=桌深800, T=板厚25)
+    ("PROD-DESK-01", "SEMI-DESK-FRAME", "FIXED", 1.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "半成品"),
+    ("PROD-DESK-01", "MAT-WOOD-25", "FORMULA_3D", 1.28, "(W * D) / 1000000.0", "iif(W >= 1800, 80, 0)", "THRESHOLD_SCRAP", 3.0, 0.6, 0.0, 1.0, "材料", "基材"),
+    ("PROD-DESK-01", "OUT-FOOT-PAD", "FIXED", 1.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "基材"),
+    ("PROD-DESK-01", "MAC-CNC-EDGE", "FIXED", 1.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "机械", "人工费"),
+    ("SEMI-DESK-FRAME", "MAT-TUBE-40", "FORMULA_3D", 6.2, "(4 * H + 2 * W + 2 * D) / 1000.0", "", "WHOLE_PACK", 6.0, 0.0, 0.05, 1.0, "材料", "基材"),
+    ("SEMI-DESK-FRAME", "MAT-BEAM-MID", "FORMULA_3D", 1.0, "iif(W >= 1500, 2, 1)", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "基材"),
+    ("SEMI-DESK-FRAME", "LAB-WELD-INT", "FORMULA_3D", 1.5, "iif(W >= 1500, 2.2, 1.5)", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "人工", "人工费"),
+    ("SEMI-DESK-FRAME", "LAB-SPRAY-EXT", "FORMULA_3D", 1.4, "(4 * H + 2 * W) * 0.16 / 1000.0", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "人工", "人工费"),
+
+    # 2. 四层重型仓储货架 (H=架高2000, W=跨宽1800, D=架深600)
+    ("PROD-RACK-01", "SEMI-RACK-UPRIGHT", "FIXED", 2.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "半成品"),
+    ("PROD-RACK-01", "SEMI-RACK-LAYER", "FIXED", 4.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "半成品"),
+    ("PROD-RACK-01", "OUT-ANCHOR-BOLT", "FIXED", 1.0, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "基材"),
+    ("PROD-RACK-01", "LAB-WELD-INT", "FIXED", 2.5, "", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "人工", "人工费"),
+    ("SEMI-RACK-UPRIGHT", "MAT-C-STEEL", "FORMULA_3D", 4.0, "(2 * H) / 1000.0", "", "THRESHOLD_SCRAP", 6.0, 1.0, 0.03, 1.0, "材料", "基材"),
+    ("SEMI-RACK-UPRIGHT", "LAB-SPRAY-EXT", "FORMULA_3D", 1.2, "(2 * H * 0.28) / 1000.0", "", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "人工", "人工费"),
+    ("SEMI-RACK-LAYER", "MAT-BEAM-ORANGE", "FORMULA_3D", 3.6, "(2 * W) / 1000.0", "iif(W >= 2000, 60, 0)", "CONTINUOUS", 1.0, 0.0, 0.0, 1.0, "材料", "基材"),
+    ("SEMI-RACK-LAYER", "MAT-DECK-STEEL", "FORMULA_3D", 1.08, "(W * D) / 1000000.0", "", "THRESHOLD_SCRAP", 2.4, 0.4, 0.0, 1.0, "材料", "基材"),
 ]

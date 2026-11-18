@@ -66,7 +66,7 @@ class BomCostingService:
                     flat_materials.append({"sku_code": it["sku_code"], "name": it["name"], "unit": it["unit"], "required_qty": bill_qty})
                 if b_grp in bom_summary:
                     bom_summary[b_grp] = round(bom_summary[b_grp] + sub, 2)
-                node = {**it, "qty": bill_qty, "raw_qty": round(mult_qty, 3), "scrap_qty": scrap_qty, "remnant_note": rem_note, "extra_cost": round(extra_cost, 2), "subtotal": sub, "children": []}
+                node = {**it, "qty": bill_qty, "raw_qty": round(mult_qty, 3), "scrap_qty": scrap_qty, "remnant_note": rem_note, "unit_pack_size": pack, "min_remnant": mrem, "remnant_policy": pol, "extra_cost": round(extra_cost, 2), "subtotal": sub, "children": []}
                 if formula_error:
                     node["formula_error"] = formula_error
                 return node

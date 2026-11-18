@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useBom } from '../composables/useBom'
 import type { QuoteSnapshotItem } from '../api/bomClient'
 import { exportBomCsv } from '../utils/bomCsv'
+import Bom3DPreview from './Bom3DPreview.vue'
 import BomAssembler from './BomAssembler.vue'
+import BomHealthBar from './BomHealthBar.vue'
 import BomEdgeModal from './BomEdgeModal.vue'
-
 const props = defineProps<{ token: string }>()
 const { items, edges, rollup, quotes, stockItems, sandbox3d, refreshEdges, refreshTreeOnly, addEdge, saveEdge, removeEdge, cloneBom, runStockCheck, createQuote, loadQuotes } = useBom()
-
 const rootId = ref('')
-const mode = ref<'assemble' | 'table'>('assemble')
+const mode = ref<'assemble' | 'table' | '3d'>('assemble')
 const activeParentId = ref('')
 const cloneFromId = ref('')
 const modalOpen = ref(false)
@@ -20,15 +20,17 @@ const marginPct = ref(15)
 const taxPct = ref(13)
 const compareBase = ref<QuoteSnapshotItem | null>(null)
 const compareMsg = ref('')
-
 const parentOptions = computed(() => items.value.filter((i) => i.category === 'PRODUCT' || i.category === 'SEMI_FINISHED'))
-
+function openEdgeBySku(sku: string) {
+  const hit = edges.value.find((e) => e.child_sku.toUpperCase() === sku.toUpperCase())
+  if (hit) { editingEdge.value = hit; modalOpen.value = true }
+  else errMsg.value = `当前层未直接挂载 ${sku}，请切换到对应半成品节点编辑`
+}
 async function selectNode(nodeId: string, isRoot = false) {
   if (isRoot) rootId.value = nodeId
   activeParentId.value = nodeId
   await refreshEdges(props.token, nodeId, rootId.value || nodeId)
 }
-
 async function handleModalSubmit(payload: Record<string, any>) {
   errMsg.value = ''; msg.value = ''
   try {
@@ -37,13 +39,11 @@ async function handleModalSubmit(payload: Record<string, any>) {
     modalOpen.value = false; msg.value = '规则配置已保存并完成重算'
   } catch (err) { errMsg.value = err instanceof Error ? err.message : String(err) }
 }
-
 async function handleClone() {
   if (!cloneFromId.value || !activeParentId.value) return
   try { msg.value = `成功克隆 ${await cloneBom(props.token, cloneFromId.value, activeParentId.value)} 条结构` }
   catch (err) { errMsg.value = err instanceof Error ? err.message : String(err) }
 }
-
 async function handleSaveQuote() {
   if (!rootId.value) return
   errMsg.value = ''
@@ -52,7 +52,6 @@ async function handleSaveQuote() {
     msg.value = `已冻结报价快照 ${q.quote_no}（毛利 ${marginPct.value}% + 税 ${taxPct.value}% → 含税 ¥${q.final_price}）`
   } catch (err) { errMsg.value = err instanceof Error ? err.message : String(err) }
 }
-
 function handleCompare(q: QuoteSnapshotItem) {
   if (!compareBase.value || compareBase.value.id === q.id) {
     compareBase.value = q
@@ -65,19 +64,23 @@ function handleCompare(q: QuoteSnapshotItem) {
   compareMsg.value = `${compareBase.value.quote_no} → ${q.quote_no}：直接成本 ${fmt(dCost)} 元，含税总价 ${fmt(dPrice)} 元`
   compareBase.value = null
 }
+watch(parentOptions, (opts) => {
+  if (opts.length && !rootId.value) selectNode(opts[0].id, true)
+}, { immediate: true })
+
 
 onMounted(async () => {
   await loadQuotes(props.token)
   if (parentOptions.value.length) await selectNode(parentOptions.value[0].id, true)
 })
 </script>
-
 <template>
   <div class="tree-editor">
     <div class="sandbox-bar">
       <div class="mode-switch">
         <button :class="{ on: mode === 'assemble' }" @click="mode = 'assemble'">拼装</button>
         <button :class="{ on: mode === 'table' }" @click="mode = 'table'">表格</button>
+        <button :class="{ on: mode === '3d' }" @click="mode = '3d'">3D 视图</button>
       </div>
       <strong>3D 沙盒(mm)：</strong>
       <label>H <input v-model.number="sandbox3d.h" type="number" class="num-inp" @change="refreshTreeOnly(token, rootId)" /></label>
@@ -94,8 +97,9 @@ onMounted(async () => {
         <span v-for="(v, k) in rollup.cost_summary" :key="k" class="badge badge-blue">{{ k }} ¥{{ v }}</span>
       </div>
     </div>
-
-    <BomAssembler v-if="mode === 'assemble'" :token="token" :root-id="rootId" />
+    <BomHealthBar :rollup="rollup" :margin-pct="marginPct" :tax-pct="taxPct" />
+    <Bom3DPreview v-if="mode === '3d'" :params="sandbox3d" :rollup="rollup" :margin-pct="marginPct" :tax-pct="taxPct" :highlight-sku="items.find(i => i.id === activeParentId)?.sku_code" @edit-sku="openEdgeBySku" />
+    <BomAssembler v-else-if="mode === 'assemble'" :token="token" :root-id="rootId" />
     <div v-else class="split-pane">
       <aside class="tree-left">
         <select v-model="rootId" class="sel" style="width: 100%; margin-bottom: 8px" @change="selectNode(rootId, true)">
@@ -113,7 +117,6 @@ onMounted(async () => {
           </div>
         </div>
       </aside>
-
       <div class="table-right">
         <div class="add-card">
           <button class="btn btn-primary" @click="editingEdge = null; modalOpen = true">+ 新增子件与高级规则</button>
@@ -122,7 +125,6 @@ onMounted(async () => {
         </div>
         <p v-if="msg" class="ok-line">{{ msg }}</p>
         <p v-if="errMsg" class="err-line">{{ errMsg }}</p>
-
         <div class="table-wrap">
           <table>
             <thead><tr><th>子件</th><th>计价/余料策略</th><th>公式 & 附加费</th><th>浮动</th><th>操作</th></tr></thead>
@@ -137,7 +139,6 @@ onMounted(async () => {
             </tbody>
           </table>
         </div>
-
         <div v-if="stockItems.length" class="table-wrap">
           <table>
             <thead><tr><th>跨库库存齐套检查 (rag_db.inventory_items)</th><th>需用量</th><th>现有库存</th><th>仓库</th><th>状态</th></tr></thead>
@@ -149,7 +150,6 @@ onMounted(async () => {
             </tbody>
           </table>
         </div>
-
         <div v-if="quotes.length" class="table-wrap">
           <p v-if="compareMsg" class="ok-line">{{ compareMsg }}</p>
           <table>
@@ -169,7 +169,6 @@ onMounted(async () => {
     <BomEdgeModal :visible="modalOpen" :token="token" :items="items" :editing-edge="editingEdge" @close="modalOpen = false" @submit="handleModalSubmit" />
   </div>
 </template>
-
 <style scoped>
 .tree-editor { display: flex; flex-direction: column; gap: 12px; }
 .sandbox-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 10px; font-size: 13px; }
