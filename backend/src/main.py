@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import auth, bom, chat, docs, eval as eval_api, memories, menus, sessions, tools, workflows
+from src.api import auth, bom, bom_formula, chat, docs, eval as eval_api, memories, menus, sessions, tools, workflows
 from src.config import settings
 from src.infra.http_client import close_http_client, create_http_client
 from src.infra.postgres import close_pg_pool, create_pg_pool
@@ -16,6 +16,11 @@ from src.repositories.bom_repo import BomRepo
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # 生产环境强制校验：默认 JWT secret 直接拒绝启动，避免可伪造任意用户 token
+    if settings.env != "dev" and settings.jwt_secret == "dev-secret-change-in-production":
+        raise RuntimeError("生产环境必须配置专用 JWT_SECRET（当前仍为开发默认值），拒绝启动")
+    if not settings.pg_dsn or not settings.bom_pg_dsn:
+        raise RuntimeError("缺少 PG_DSN / BOM_PG_DSN 配置，请检查 backend/.env")
     app.state.pg_pool = await create_pg_pool(settings.pg_dsn)
     app.state.bom_pool = await create_pg_pool(settings.bom_pg_dsn)
     # 启动时一次性完成 BOM 增量迁移，避免每个请求重复执行 6 条 DDL
@@ -53,6 +58,7 @@ app.include_router(chat.router)
 app.include_router(tools.router)
 app.include_router(workflows.router)
 app.include_router(bom.router)
+app.include_router(bom_formula.router)
 app.include_router(menus.router)
 
 

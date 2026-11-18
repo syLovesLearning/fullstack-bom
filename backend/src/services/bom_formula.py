@@ -63,6 +63,58 @@ def _eval_node(node: ast.AST, env: dict[str, float]) -> Any:
     raise ValueError("Unsupported formula syntax")
 
 
+def verify_rows(expr: str, rows: list[dict[str, Any]], tol: float = 1e-6) -> dict[str, Any]:
+    """用测试数据行批量核对公式：有预期值才判定通过/失败，留空只回显计算结果。"""
+    results: list[dict[str, Any]] = []
+    passed = failed = errors = no_expect = 0
+    values: list[float] = []
+    for row in rows:
+        env = {k: float(v) for k, v in (row.get("env") or {}).items()}
+        expected = row.get("expected")
+        actual, error = eval_formula_with_error(expr, env)
+        diff: float | None = None
+        if error:
+            status = "error"
+            errors += 1
+        elif expected is None:
+            status = "no_expect"
+            no_expect += 1
+            values.append(actual)  # type: ignore[arg-type]
+        else:
+            diff = round(actual - float(expected), 6)  # type: ignore[operator]
+            limit = max(tol, abs(float(expected)) * 1e-6)
+            status = "pass" if abs(diff) <= limit else "fail"
+            passed += status == "pass"
+            failed += status == "fail"
+            values.append(actual)  # type: ignore[arg-type]
+        results.append({
+            "index": row.get("index"),
+            "env": env,
+            "expected": expected,
+            "actual": None if actual is None else round(actual, 6),
+            "diff": diff,
+            "status": status,
+            "error": error,
+            "note": row.get("note", ""),
+        })
+    total = len(results)
+    return {
+        "expr": expr,
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "errors": errors,
+        "no_expect": no_expect,
+        "all_ok": total > 0 and failed == 0 and errors == 0 and passed > 0,
+        "summary": {
+            "min": round(min(values), 6) if values else None,
+            "max": round(max(values), 6) if values else None,
+            "avg": round(sum(values) / len(values), 6) if values else None,
+        },
+        "rows": results,
+    }
+
+
 def calc_remnant_qty(raw_qty: float, pack_size: float, policy: str, min_remnant: float) -> tuple[float, float, str]:
     """返回 (计价用量, 不可用余料报废量, 备注)。"""
     if raw_qty <= 0 or policy == "CONTINUOUS" or pack_size <= 0:

@@ -55,6 +55,10 @@
 - `PATCH /bom/edges/{edge_id}` -> `BomEdgeUpdate` -> `BomEdge`（行内编辑用量、3D公式、人工浮动与归类）
 - `POST /bom/clone` -> `{source_parent_id, target_parent_id}` -> `{cloned_count: int}`（一键克隆 BOM 结构，单事务批量写入）
 - `POST /bom/formula/check` -> `{expr, env}` -> `{ok: bool, value: float|null, error: str}`（公式试算校验，前端编辑实时反馈）
+- `POST /bom/formula/draft` -> `{intent, target: "qty"|"extra", env?, base_qty?, qty?}` -> `{ok, expr, explain, steps[], assumptions[], samples[{env,value,error}], error, tokens}`（**AI 录入第 1 步**：口述逻辑 → 受限 DSL 公式，模型输出经 AST 白名单求值校验，失败自动带上错误重试一轮；未配置 LLM_API_KEY 时 `ok=false` 并给出提示）
+- `GET /bom/formula/template?target=qty|extra&expr=` -> `xlsx` 二进制（**第 2 步**：下载测试数据模板，主表含 3 行预置尺寸、`预期结果` 选填，次表写入变量/函数/判定口径说明）
+- `POST /bom/formula/parse-sheet`（multipart `file`，.xlsx/.xlsm/.csv，≤2MB）-> `{rows[{index, env{H,W,D,T,base_qty,qty}, expected, note}], warnings[], skipped}`（**第 2 步**：上传填写后的文件，表头按中英别名映射，最多 500 行）
+- `POST /bom/formula/batch-check` -> `{expr, rows[]}` -> `{total, passed, failed, errors, no_expect, all_ok, summary{min,max,avg}, rows[{expected, actual, diff, status: pass|fail|no_expect|error}]}`（**第 3 步**：批量核对，`预期结果` 留空只回显不判定；`all_ok` 需同时满足「至少 1 行填了预期值」+「失败=0」+「异常=0」，全行留空不算通过）
 - `GET /bom/tree/{root_id}?h=2200&w=800&d=600&t=2.0` -> 支持传入 3D 沙盒参数实时求值 `FORMULA_3D`
 - `POST /bom/quotes` -> `{root_id, params_3d, margin_rate, tax_rate, note}` -> `QuoteSnapshot`（冻结当前 BOM 试算结果与余料损耗）
 - `GET /bom/quotes` -> `QuoteSnapshot[]`（查看历史报价快照）

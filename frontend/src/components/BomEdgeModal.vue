@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import { checkBomFormula, type FormulaCheckResult, type BomItem } from '../api/bomClient'
+import BomFormulaStudio from './BomFormulaStudio.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -44,6 +45,25 @@ function insertTpl(target: 'formula' | 'extra', expr: string) {
   if (target === 'formula') { form.qty_mode = 'FORMULA_3D'; form.formula_expr = expr }
   else form.extra_cost_expr = expr
   void validateExpr(target)
+}
+
+const studioOpen = ref(false)
+const studioTarget = ref<'qty' | 'extra'>('qty')
+
+function openStudio(target: 'formula' | 'extra') {
+  studioTarget.value = target === 'formula' ? 'qty' : 'extra'
+  studioOpen.value = true
+}
+
+function applyStudio(payload: { target: 'qty' | 'extra'; expr: string }) {
+  if (payload.target === 'qty') {
+    form.qty_mode = 'FORMULA_3D'
+    form.formula_expr = payload.expr
+  } else {
+    form.extra_cost_expr = payload.expr
+  }
+  studioOpen.value = false
+  void validateExpr(payload.target === 'qty' ? 'formula' : 'extra')
 }
 </script>
 
@@ -95,6 +115,7 @@ function insertTpl(target: 'formula' | 'extra', expr: string) {
           {{ formulaCheck.ok ? `✓ 试算通过（沙盒 2200×800×600×2.0 → ${formulaCheck.value}）` : `✗ ${formulaCheck.error}` }}
         </div>
         <div class="tpl-row">
+          <button class="chip chip-ai" @click="openStudio('formula')">✨ AI 录入</button>
           <button class="chip" @click="insertTpl('formula', 'iif(W >= 1000, base_qty * 1.2, base_qty)')">宽度>=1000加量20%</button>
           <button class="chip" @click="insertTpl('formula', '(2*(H*W+H*D+W*D)/1000000.0)*T*7.85')">钢板展开重量</button>
         </div>
@@ -106,6 +127,7 @@ function insertTpl(target: 'formula' | 'extra', expr: string) {
           {{ extraCheck.ok ? `✓ 试算通过（沙盒 → ¥${extraCheck.value}）` : `✗ ${extraCheck.error}` }}
         </div>
         <div class="tpl-row">
+          <button class="chip chip-ai" @click="openStudio('extra')">✨ AI 录入</button>
           <button class="chip" @click="insertTpl('extra', 'iif(W >= 1000, 120, -10)')">iif(W>=1000, +120, -10)</button>
           <button class="chip" @click="insertTpl('extra', 'iif(qty > 150, 80, 0)')">超150加收特殊料费80</button>
         </div>
@@ -116,6 +138,15 @@ function insertTpl(target: 'formula' | 'extra', expr: string) {
         <button class="btn btn-primary" @click="emit('submit', { ...form })">保存配置</button>
       </footer>
     </div>
+
+    <BomFormulaStudio
+      :visible="studioOpen"
+      :token="props.token"
+      :target="studioTarget"
+      :initial-expr="studioTarget === 'qty' ? form.formula_expr : form.extra_cost_expr"
+      @close="studioOpen = false"
+      @apply="applyStudio"
+    />
   </div>
 </template>
 
@@ -129,6 +160,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color:
 .inp { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; color: #0f172a; }
 .tpl-row { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .chip { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; cursor: pointer; }
+.chip-ai { border-color: #c7d2fe; background: #eef2ff; color: #4338ca; font-weight: 600; }
 .check-line { font-size: 12px; margin-top: 2px; }
 .check-ok { color: #15803d; }
 .check-err { color: #d93025; }

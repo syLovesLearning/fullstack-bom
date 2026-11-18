@@ -6,8 +6,9 @@
 
 | File | Exports | Internal Deps | Summary |
 | :--- | :--- | :--- | :--- |
-| `backend/src/api/auth.py` | dev_login, register, login, get_me | src.api.deps, src.repositories.user_repo, src.schemas.models | 鉴权接口：支持开发一键切换账号、正式注册与密码登录。 |
-| `backend/src/api/bom.py` | list_bom_items, upsert_bom_item, delete_bom_item, list_bom_edges, create_bom_edge, create_bom_edges_batch, update_bom_edge, move_bom_edge, delete_bom_edge, clone_bom_edges, check_bom_formula, seed_bom_data, get_bom_rollup_tree, save_bom_quote, list_bom_quotes, check_bom_stock | src.api.deps, src.schemas.models, src.services.bom_formula, src.services.bom_service | BOM 维护、余料试算、报价快照与跨库库存齐套 REST 接口。 |
+| `backend/src/api/auth.py` | dev_login, register, login, get_me | src.api.deps, src.config, src.repositories.user_repo, src.schemas.models | 鉴权接口：支持开发一键切换账号、正式注册与密码登录。 |
+| `backend/src/api/bom.py` | list_bom_items, upsert_bom_item, delete_bom_item, list_bom_edges, create_bom_edge, create_bom_edges_batch, update_bom_edge, move_bom_edge, delete_bom_edge, clone_bom_edges, seed_bom_data, get_bom_rollup_tree, save_bom_quote, list_bom_quotes, check_bom_stock | src.api.deps, src.schemas.models, src.services.bom_service | BOM 维护、余料试算、报价快照与跨库库存齐套 REST 接口。 |
+| `backend/src/api/bom_formula.py` | check_formula, draft_formula_expr, download_template, parse_uploaded_sheet, batch_check_formula | src.api.deps, src.schemas.bom_formula, src.schemas.models, src.services.bom_formula, src.services.bom_formula_ai, src.services.bom_formula_sheet, src.services.llm_service | 公式 AI 录入接口：口述编译、模板下载、测试数据解析、批量校验。 |
 | `backend/src/api/chat.py` | chat_stream | src.api.deps, src.config, src.core.agent_loop, src.core.event_context, src.core.hooks, src.repositories.inventory_repo, src.repositories.session_repo, src.repositories.trace_repo, src.repositories.workflow_repo, src.schemas.models, src.services.bom_service, src.services.llm_service, src.services.memory_service, src.services.rag_service, src.services.tool_setup, src.services.workflow_skills | 核心流式对话接口（SSE）：支持调试参数、引用持久化与全链路 Trace 记录。 |
 | `backend/src/api/deps.py` | create_access_token, get_user_repo, get_session_repo, get_memory_repo, get_trace_repo, get_doc_repo, get_workflow_repo, get_inventory_repo, get_memory_service, get_llm_service, get_rag_service, get_current_auth, get_bom_repo, get_bom_service, get_menu_repo, get_menu_service | src.config, src.core.event_context, src.repositories.bom_repo, src.repositories.doc_repo, src.repositories.inventory_repo, src.repositories.memory_repo, src.repositories.menu_repo, src.repositories.session_repo, src.repositories.trace_repo, src.repositories.user_repo, src.repositories.workflow_repo, src.schemas.models, src.services.bom_service, src.services.embedding_service, src.services.llm_service, src.services.memory_service, src.services.menu_service, src.services.rag_service | FastAPI 依赖注入装配与 JWT 鉴权（解析 AuthContext 并写入 ContextVar）。 |
 | `backend/src/api/docs.py` | DocIngestRequest, DocSearchRequest, DocDebugSearchRequest, ingest_document, upload_documents, list_documents, delete_document, debug_rag_search, debug_rag_pipeline | src.api.deps, src.repositories.doc_repo, src.schemas.models, src.services.file_parser, src.services.rag_service | 知识库文档管理、分组权限上传与 RAG 透视接口。 |
@@ -15,7 +16,7 @@
 | `backend/src/api/memories.py` | list_memories, create_memory, delete_memory | src.api.deps, src.repositories.memory_repo, src.schemas.models | 长期记忆管理 REST 接口：支持前端可视化查看、新增与人工纠偏删除。 |
 | `backend/src/api/menus.py` | get_my_menus, get_all_menus, update_menu_config | src.api.deps, src.schemas.models, src.services.menu_service | 动态菜单 REST 接口：支持按角色拉取左侧菜单与管理员在线配置。 |
 | `backend/src/api/sessions.py` | create_session, list_sessions, rename_session, delete_session, list_messages | src.api.deps, src.repositories.session_repo, src.schemas.models | 会话管理 REST 接口（严格按 user_id 隔离，支持重命名与删除）。 |
-| `backend/src/api/tools.py` | list_available_tools, get_run_trace | src.api.deps, src.repositories.trace_repo, src.schemas.models, src.services.bom_service, src.services.memory_service, src.services.rag_service, src.services.tool_setup | 能力发现与轨迹审计接口（按用户权限裁剪工具列表）。 |
+| `backend/src/api/tools.py` | list_available_tools, get_run_trace | src.api.deps, src.repositories.inventory_repo, src.repositories.trace_repo, src.repositories.workflow_repo, src.schemas.models, src.services.bom_service, src.services.memory_service, src.services.rag_service, src.services.tool_setup | 能力发现与轨迹审计接口（按用户权限裁剪工具列表）。 |
 | `backend/src/api/workflows.py` | WorkflowSubmitRequest, WorkflowStatusUpdate, WorkflowDefinitionUpsert, list_workflow_skills, upsert_workflow_definition, submit_workflow, list_workflows, update_workflow_status | src.api.deps, src.repositories.workflow_repo, src.schemas.models, src.services.workflow_skills | 配置化企业流程中心 REST 接口（按角色过滤可用流程 + 动态新建流程类型 + 分页台账）。 |
 | `backend/src/config.py` | Settings | - | 全局配置：使用 find_dotenv 向上查找 .env，杜绝硬编码 .parent 层级。 |
 | `backend/src/core/agent_loop.py` | LLMCallable, AgentLoop | src.core.event_context, src.core.hooks, src.core.tool_registry, src.schemas.models | 透明可观测的智能体调度循环（Agent Kernel 核心）。 |
@@ -37,10 +38,13 @@
 | `backend/src/repositories/trace_repo.py` | TraceRepo | - | 轨迹审计仓库：记录每次智能体运行的步骤、耗时与 Token（强制 user_id 隔离）。 |
 | `backend/src/repositories/user_repo.py` | UserRepo | - | 用户与权限数据仓库（支持角色、分组数据权限与 PBKDF2 密码校验）。 |
 | `backend/src/repositories/workflow_repo.py` | WorkflowRepo | - | 企业流程定义与实例数据仓库（配置化流程 + 分页台账 + 幂等审批）。 |
+| `backend/src/schemas/bom_formula.py` | BomFormulaDraftRequest, BomFormulaSheetRow, BomFormulaBatchCheckRequest | - | 公式 AI 录入相关请求模型：口述编译、测试数据行、批量校验。 |
 | `backend/src/schemas/models.py` | AuthContext, ToolCall, ChatMessage, AgentState, SSEEvent, DevLoginRequest, RegisterRequest, LoginRequest, SessionCreate, SessionUpdate, ChatRequest, MemoryCreate, BomItemCreate, BomEdgeCreate, BomEdgeUpdate, BomEdgeMove, BomEdgeBatchCreate, BomCloneRequest, QuoteSaveRequest, StockCheckRequest, BomFormulaCheckRequest, SysMenuUpdate | - | 跨层共享 Pydantic v2 契约模型（对标前端 TypeScript Interface）。 |
 | `backend/src/services/bm25.py` | tokenize, bm25_rank, rrf_fuse | - | 中英混排 BM25 检索与 RRF 倒数排名融合算法。 |
 | `backend/src/services/bom_costing.py` | BomCostingService, quote_snapshot_to_json | src.repositories.bom_repo, src.services.bom_formula | BOM 成本试算服务：多级递归算价、余料阈值核算、报价快照与跨库库存齐套核查。 |
-| `backend/src/services/bom_formula.py` | dist3d, iif, safe_eval_formula, eval_formula_with_error, calc_remnant_qty | - | 安全 AST 表达式求值器与余料阈值核算：支持 iif() 条件、dist3d() 与整料余料报废计算。 |
+| `backend/src/services/bom_formula.py` | dist3d, iif, safe_eval_formula, eval_formula_with_error, verify_rows, calc_remnant_qty | - | 安全 AST 表达式求值器与余料阈值核算：支持 iif() 条件、dist3d() 与整料余料报废计算。 |
+| `backend/src/services/bom_formula_ai.py` | base_env, draft_formula | src.config, src.schemas.models, src.services.bom_formula, src.services.llm_service | 口述逻辑 → BOM 公式：LLM 编译为受限 DSL，回环自修复并输出样例求值。 |
+| `backend/src/services/bom_formula_sheet.py` | build_template, parse_sheet | - | 测试数据模板生成与上传解析：openpyxl 显式读写 xlsx，另兼容 csv。 |
 | `backend/src/services/bom_seed.py` | - | - | BOM 演示种子数据：示例机柜多级 BOM（物料清单与父子关系定义）。 |
 | `backend/src/services/bom_service.py` | BomService | src.repositories.bom_repo, src.services.bom_costing, src.services.bom_seed | BOM 业务编排门面：物料/结构 CRUD 与批量写入，成本试算委托 BomCostingService。 |
 | `backend/src/services/bom_tools.py` | BomQuoteArgs, BomStockArgs, register_bom_tools | src.core.event_context, src.core.tool_registry, src.services.bom_service | BOM 能力的智能体工具注册：成本试算报价与跨库库存齐套核查（挂载进 ToolRegistry）。 |
@@ -61,11 +65,14 @@
 | :--- | :--- |
 | `frontend/src/App.vue` | App |
 | `frontend/src/api/bomClient.ts` | listBomItems, upsertBomItem, deleteBomItem, listBomEdges, createBomEdge, batchAddBomEdges, moveBomEdge, deleteBomEdge, seedBomDemo, fetchBomRollupTree, updateBomEdge, cloneBomStructure, saveBomQuote, listBomQuotes, checkBomStock, checkBomFormula |
+| `frontend/src/api/bomFormulaClient.ts` | FormulaSample, FormulaDraft, SheetRow, ParsedSheet, BatchRowResult, BatchCheck, draftBomFormula, batchCheckBomFormula, parseBomFormulaSheet, downloadBomFormulaTemplate |
 | `frontend/src/api/bomTypes.ts` | BomItem, BomEdge, BomEdgeRule, BomNode, BomRollupResponse, makeDefaultRule, QuoteSnapshotItem, StockCheckItem, FormulaCheckResult |
 | `frontend/src/api/client.ts` | UserInfo, EvalCase, EvalHit, EvalCaseResult, EvalRunResponse, DocItem, BatchUploadResponse, DebugStageHit, DebugRerankHit, DebugSearchResponse, SessionItem, ActionCardItem, MessageItem, MemoryItem, request, devLogin, loginUser, registerUser, listSessions, createSession, listSessionMessages, listMemories, createMemory, deleteMemory, fetchEvalCases, seedEvalDocs, runEvalSuite, listDocs, deleteDoc, uploadDocs, debugRagPipeline, ChatDebugOptions, RunStepItem, RunTraceResponse, renameSession, deleteSession, getRunTrace, WorkflowItem, WorkflowListResponse, listWorkflows, submitWorkflow, updateWorkflowStatus, WorkflowFieldDef, WorkflowDefinition, fetchWorkflowSkills, upsertWorkflowDefinition, SysMenuItem, fetchVisibleMenus, fetchAllMenus, updateSysMenu |
 | `frontend/src/components/ApiTester.vue` | ApiTester |
 | `frontend/src/components/BomAssembler.vue` | BomAssembler |
 | `frontend/src/components/BomEdgeModal.vue` | BomEdgeModal |
+| `frontend/src/components/BomFormulaStudio.vue` | BomFormulaStudio |
+| `frontend/src/components/BomFormulaTestTable.vue` | BomFormulaTestTable |
 | `frontend/src/components/BomInspector.vue` | BomInspector |
 | `frontend/src/components/BomItemPanel.vue` | BomItemPanel |
 | `frontend/src/components/BomManager.vue` | BomManager |
@@ -84,6 +91,7 @@
 | `frontend/src/composables/useAgentStream.ts` | TraceLog, useAgentStream |
 | `frontend/src/composables/useBom.ts` | useBom |
 | `frontend/src/composables/useBomDrag.ts` | MAX_DEPTH, NodeMeta, TreeIndex, DropVerdict, UndoEntry, nodeKey, buildTreeIndex, useBomDrag |
+| `frontend/src/composables/useBomFormulaStudio.ts` | useBomFormulaStudio |
 | `frontend/src/composables/useMemories.ts` | useMemories |
 | `frontend/src/main.ts` | - |
 | `frontend/src/utils/bomCsv.ts` | exportBomCsv |

@@ -6,8 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.deps import get_bom_service, get_current_auth
-from src.schemas.models import AuthContext, BomCloneRequest, BomEdgeBatchCreate, BomEdgeCreate, BomEdgeMove, BomEdgeUpdate, BomFormulaCheckRequest, BomItemCreate, QuoteSaveRequest, StockCheckRequest
-from src.services.bom_formula import eval_formula_with_error
+from src.schemas.models import AuthContext, BomCloneRequest, BomEdgeBatchCreate, BomEdgeCreate, BomEdgeMove, BomEdgeUpdate, BomItemCreate, QuoteSaveRequest, StockCheckRequest
 from src.services.bom_service import BomService
 
 router = APIRouter(prefix="/api/v1/bom", tags=["bom"])
@@ -85,16 +84,6 @@ async def clone_bom_edges(body: BomCloneRequest, auth: AuthContext = Depends(get
         return {"cloned_count": await svc.clone_bom(user_id=auth.user_id, source_id=body.source_parent_id, target_id=body.target_parent_id)}
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-
-@router.post("/formula/check")
-async def check_bom_formula(
-    body: BomFormulaCheckRequest,
-    auth: AuthContext = Depends(get_current_auth),
-) -> dict[str, Any]:
-    """公式试算校验：前端编辑 FORMULA_3D/附加成本表达式时实时反馈错误。"""
-    value, error = eval_formula_with_error(body.expr, body.env)
-    return {"ok": error == "", "value": value, "error": error}
 
 
 @router.post("/seed")
