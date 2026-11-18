@@ -119,6 +119,14 @@ class BomEdgeUpdate(BaseModel):
     cost_group: Literal["半成品", "基材", "人工费"] = "基材"
 
 
+class BomEdgeMove(BaseModel):
+    parent_id: UUID
+
+
+class BomEdgeBatchCreate(BaseModel):
+    rows: list[BomEdgeCreate] = Field(min_length=1, max_length=50)
+
+
 class BomCloneRequest(BaseModel):
     source_parent_id: UUID
     target_parent_id: UUID

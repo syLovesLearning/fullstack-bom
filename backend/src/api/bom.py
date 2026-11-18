@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.deps import get_bom_service, get_current_auth
-from src.schemas.models import AuthContext, BomCloneRequest, BomEdgeCreate, BomEdgeUpdate, BomFormulaCheckRequest, BomItemCreate, QuoteSaveRequest, StockCheckRequest
+from src.schemas.models import AuthContext, BomCloneRequest, BomEdgeBatchCreate, BomEdgeCreate, BomEdgeMove, BomEdgeUpdate, BomFormulaCheckRequest, BomItemCreate, QuoteSaveRequest, StockCheckRequest
 from src.services.bom_formula import eval_formula_with_error
 from src.services.bom_service import BomService
 
@@ -46,12 +46,30 @@ async def create_bom_edge(parent_id: UUID, body: BomEdgeCreate, auth: AuthContex
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
+@router.post("/edges/{parent_id}/batch")
+async def create_bom_edges_batch(parent_id: UUID, body: BomEdgeBatchCreate, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, int]:
+    """拖拽多选落地：一次环检测 + 单事务批量挂载，返回实际写入条数。"""
+    try:
+        return {"created_count": await svc.add_edges_batch(user_id=auth.user_id, parent_id=parent_id, rows=[r.model_dump() for r in body.rows])}
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
 @router.patch("/edges/{edge_id}")
 async def update_bom_edge(edge_id: UUID, body: BomEdgeUpdate, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, Any]:
     updated = await svc.update_edge(user_id=auth.user_id, edge_id=edge_id, data=body.model_dump())
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="BOM edge not found")
     return updated
+
+
+@router.patch("/edges/{edge_id}/move")
+async def move_bom_edge(edge_id: UUID, body: BomEdgeMove, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, Any]:
+    """拖拽换父级：边本身连同公式/余料策略整体迁移，只改挂载点。"""
+    try:
+        return await svc.move_edge(user_id=auth.user_id, edge_id=edge_id, new_parent_id=body.parent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.delete("/edges/{edge_id}")

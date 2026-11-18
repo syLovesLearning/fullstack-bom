@@ -1,89 +1,13 @@
-/** BOM 专属 API 模块：物料、结构、试算树、报价快照、库存齐套与公式校验。 */
+/** BOM 专属 API 模块：物料、结构、试算树、报价快照、库存齐套与公式校验。
+ * 领域类型统一从 bomTypes.ts 导出，本文件只放 HTTP 调用。
+ */
 
 import { request } from './client'
-
-export interface BomItem {
-  id: string
-  sku_code: string
-  name: string
-  category: 'PRODUCT' | 'SEMI_FINISHED' | 'BASE_MATERIAL' | 'OUTSOURCED' | 'LABOR' | 'MACHINE'
-  sub_type: 'FIXED' | 'NON_FIXED' | 'INTERNAL' | 'EXTERNAL' | 'SPECIAL_PROCESS' | 'STANDARD'
-  unit: string
-  base_price: number
-  created_at: string
-}
-
-export interface BomEdge {
-  id: string
-  parent_item_id: string
-  child_item_id: string
-  child_sku: string
-  child_name: string
-  child_category: string
-  child_sub_type: string
-  child_unit: string
-  child_price: number
-  qty_mode: 'FIXED' | 'FORMULA_3D'
-  base_qty: number
-  formula_expr: string
-  float_factor: number
-  bom_group: '人工' | '材料' | '机械'
-  cost_group: '半成品' | '基材' | '人工费'
-}
-
-export interface BomRollupResponse {
-  root: {
-    id: string
-    sku_code: string
-    name: string
-    category: string
-    qty: number
-    subtotal: number
-    children: Array<{
-      id: string
-      sku_code: string
-      name: string
-      category: string
-      sub_type: string
-      qty: number
-      qty_mode?: string
-      formula_expr?: string
-      float_factor?: number
-      bom_group?: string
-      cost_group?: string
-      subtotal: number
-      children: unknown[]
-    }>
-  }
-  cost_summary: Record<string, number>
-  bom_summary: Record<string, number>
-}
-
-export interface QuoteSnapshotItem {
-  id: string
-  quote_no: string
-  root_name: string
-  direct_cost: number
-  final_price: number
-  note: string
-  created_at: string
-}
-
-export interface StockCheckItem {
-  sku_code: string
-  name: string
-  unit: string
-  required_qty: number
-  stock_qty: number
-  warehouse: string
-  status: '齐套' | '缺料' | '未建档'
-}
-
-export interface FormulaCheckResult {
-  ok: boolean
-  value: number | null
-  error: string
-}
+import type {
+  BomEdge, BomEdgeRule, BomItem, BomRollupResponse, FormulaCheckResult,
+  QuoteSnapshotItem, StockCheckItem,
+} from './bomTypes'
+export * from './bomTypes'
 
 export function listBomItems(token: string) {
   return request<BomItem[]>('/api/v1/bom/items', token)
@@ -104,22 +28,24 @@ export function listBomEdges(token: string, parentId: string) {
   return request<BomEdge[]>(`/api/v1/bom/edges/${parentId}`, token)
 }
 
-export function createBomEdge(
-  token: string,
-  parentId: string,
-  payload: {
-    child_item_id: string
-    qty_mode: 'FIXED' | 'FORMULA_3D'
-    base_qty: number
-    formula_expr: string
-    float_factor: number
-    bom_group: '人工' | '材料' | '机械'
-    cost_group: '半成品' | '基材' | '人工费'
-  },
-) {
+export function createBomEdge(token: string, parentId: string, payload: BomEdgeRule & { child_item_id: string }) {
   return request<BomEdge>(`/api/v1/bom/edges/${parentId}`, token, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+/** 拖拽落地：多选物料一次 POST，后端单事务 executemany 写入。 */
+export function batchAddBomEdges(token: string, parentId: string, rows: Array<BomEdgeRule & { child_item_id: string }>) {
+  return request<{ created_count: number }>(`/api/v1/bom/edges/${parentId}/batch`, token, {
+    method: 'POST', body: JSON.stringify({ rows }),
+  })
+}
+
+/** 拖拽换父级：边连同公式/余料策略整体迁移，只改挂载点。 */
+export function moveBomEdge(token: string, edgeId: string, parentId: string) {
+  return request<{ edge_id: string; parent_id: string; child_id: string }>(`/api/v1/bom/edges/${edgeId}/move`, token, {
+    method: 'PATCH', body: JSON.stringify({ parent_id: parentId }),
   })
 }
 
@@ -138,18 +64,7 @@ export function fetchBomRollupTree(token: string, rootId: string, p?: { h: numbe
   return request<BomRollupResponse>(`/api/v1/bom/tree/${rootId}${qs}`, token)
 }
 
-export function updateBomEdge(
-  token: string,
-  edgeId: string,
-  payload: {
-    qty_mode: 'FIXED' | 'FORMULA_3D'
-    base_qty: number
-    formula_expr: string
-    float_factor: number
-    bom_group: '人工' | '材料' | '机械'
-    cost_group: '半成品' | '基材' | '人工费'
-  },
-) {
+export function updateBomEdge(token: string, edgeId: string, payload: BomEdgeRule) {
   return request<BomEdge>(`/api/v1/bom/edges/${edgeId}`, token, {
     method: 'PATCH',
     body: JSON.stringify(payload),

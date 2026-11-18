@@ -1,10 +1,12 @@
 """BOM 仓库：独立库 bom_db 读写与自动增量列迁移（强制 user_id 隔离）。"""
 
-import json
 from typing import Any
 from uuid import UUID
 
 from psycopg_pool import AsyncConnectionPool
+
+from src.repositories.bom_quote_repo import insert_quote_snapshot, list_quote_snapshots
+from src.repositories.bom_schema import run_v3_migration
 
 
 class BomRepo:
@@ -15,29 +17,7 @@ class BomRepo:
     async def ensure_v3_schema(self) -> None:
         if self._migrated:
             return
-        ddl = """
-            ALTER TABLE bom_edges ADD COLUMN IF NOT EXISTS extra_cost_expr TEXT NOT NULL DEFAULT '';
-            ALTER TABLE bom_edges ADD COLUMN IF NOT EXISTS remnant_policy VARCHAR(24) NOT NULL DEFAULT 'CONTINUOUS';
-            ALTER TABLE bom_edges ADD COLUMN IF NOT EXISTS unit_pack_size NUMERIC(12, 4) NOT NULL DEFAULT 1;
-            ALTER TABLE bom_edges ADD COLUMN IF NOT EXISTS min_remnant NUMERIC(12, 4) NOT NULL DEFAULT 0;
-            ALTER TABLE bom_edges ADD COLUMN IF NOT EXISTS loss_rate NUMERIC(6, 4) NOT NULL DEFAULT 0;
-            CREATE TABLE IF NOT EXISTS quote_snapshots (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID NOT NULL,
-                quote_no VARCHAR(64) NOT NULL,
-                root_item_id UUID NOT NULL REFERENCES bom_items(id),
-                root_name VARCHAR(128) NOT NULL,
-                params_3d_json JSONB NOT NULL,
-                result_json JSONB NOT NULL,
-                direct_cost NUMERIC(12, 2) NOT NULL,
-                final_price NUMERIC(12, 2) NOT NULL,
-                note TEXT NOT NULL DEFAULT '',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        """
-        async with self._pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(ddl)
+        await run_v3_migration(self._pool)
         self._migrated = True
 
     async def list_items(self, user_id: UUID) -> list[dict[str, Any]]:
@@ -183,6 +163,27 @@ class BomRepo:
                 row = await cur.fetchone()
                 return dict(row) if row else None
 
+    async def get_edge(self, edge_id: UUID, user_id: UUID) -> dict[str, Any] | None:
+        """取单条边的当前父级与子件，供拖拽移动时做环检测与回滚定位。"""
+        sql = """
+            SELECT e.id, h.item_id AS parent_id, e.child_item_id AS child_id
+            FROM bom_edges e JOIN bom_headers h ON e.bom_header_id = h.id
+            WHERE e.id = %s AND e.user_id = %s AND e.is_active = TRUE AND h.status = 'ACTIVE';
+        """
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(sql, (edge_id, user_id))
+                row = await cur.fetchone()
+                return dict(row) if row else None
+
+    async def move_edge(self, edge_id: UUID, user_id: UUID, header_id: UUID) -> bool:
+        """把已有边挂到新父级的 header 下（拖拽换父级）。"""
+        sql = "UPDATE bom_edges SET bom_header_id = %s WHERE id = %s AND user_id = %s AND is_active = TRUE RETURNING id;"
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(sql, (header_id, edge_id, user_id))
+                return await cur.fetchone() is not None
+
     async def soft_delete_edge(self, edge_id: UUID, user_id: UUID) -> bool:
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
@@ -191,25 +192,8 @@ class BomRepo:
 
     async def insert_quote_snapshot(self, user_id: UUID, row: dict[str, Any]) -> dict[str, Any]:
         await self.ensure_v3_schema()
-        sql = """
-            INSERT INTO quote_snapshots (user_id, quote_no, root_item_id, root_name, params_3d_json, result_json, direct_cost, final_price, note)
-            VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s)
-            RETURNING id, quote_no, root_name, direct_cost::float AS direct_cost, final_price::float AS final_price, note, created_at;
-        """
-        async with self._pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    sql,
-                    (user_id, row["quote_no"], row["root_item_id"], row["root_name"],
-                     json.dumps(row["params_3d"], default=str), json.dumps(row["result"], default=str),
-                     row["direct_cost"], row["final_price"], row.get("note", "")),
-                )
-                return dict(await cur.fetchone())  # type: ignore[arg-type]
+        return await insert_quote_snapshot(self._pool, user_id, row)
 
     async def list_quote_snapshots(self, user_id: UUID) -> list[dict[str, Any]]:
         await self.ensure_v3_schema()
-        sql = "SELECT id, quote_no, root_name, params_3d_json, direct_cost::float AS direct_cost, final_price::float AS final_price, note, created_at FROM quote_snapshots WHERE user_id = %s ORDER BY created_at DESC LIMIT 20;"
-        async with self._pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(sql, (user_id,))
-                return [dict(r) for r in await cur.fetchall()]
+        return await list_quote_snapshots(self._pool, user_id)

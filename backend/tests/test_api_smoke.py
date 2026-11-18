@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 import httpx
+import pytest
 
 from src.api.deps import (
     create_access_token,
@@ -16,6 +17,18 @@ from src.schemas.models import AuthContext
 from src.services.embedding_service import EmbeddingService
 from src.services.rag_service import RagService
 from tests.test_rag_pipeline import FakeDocRepo
+
+
+@pytest.fixture(autouse=True)
+def _stub_app_state() -> None:
+    """TestClient 不触发 lifespan，补齐占位资源让 Repo/Service 构造不访问真实 Postgres。"""
+    defaults = {
+        "pg_pool": object(), "bom_pool": object(), "redis": None,
+        "http_client": httpx.AsyncClient(),
+    }
+    for key, value in defaults.items():
+        if not hasattr(app.state, key):
+            setattr(app.state, key, value)
 
 
 class FakeMemoryRepo:
@@ -147,6 +160,19 @@ class FakeBomRepo:
         for data in rows:
             self.edges.append({"id": uuid4(), "user_id": user_id, "parent_id": header_id, "is_active": True, **data})
 
+    async def move_edge(self, edge_id: UUID, user_id: UUID, header_id: UUID) -> bool:
+        for e in self.edges:
+            if e["id"] == edge_id and e["user_id"] == user_id and e["is_active"]:
+                e["parent_id"] = header_id
+                return True
+        return False
+
+    async def get_edge(self, edge_id: UUID, user_id: UUID):
+        for e in self.edges:
+            if e["id"] == edge_id and e["user_id"] == user_id and e["is_active"]:
+                return {"id": e["id"], "parent_id": e["parent_id"], "child_id": e["child_item_id"]}
+        return None
+
     async def soft_delete_edge(self, edge_id: UUID, user_id: UUID) -> bool:
         for e in self.edges:
             if e["id"] == edge_id and e["user_id"] == user_id:
@@ -187,6 +213,28 @@ def test_bom_maintenance_and_rollup_endpoints() -> None:
         assert body["root"]["subtotal"] > 0
         assert body["cost_summary"]["基材(非固定)"] > 0
         assert body["bom_summary"]["材料"] > 0
+
+        # 拖拽多选落地：一次 POST 挂 2 行，单事务写入
+        steel = next(i for i in items if i["category"] == "BASE_MATERIAL")
+        batch_res = client.post(
+            f"/api/v1/bom/edges/{prod['id']}/batch", headers=headers,
+            json={"rows": [
+                {"child_item_id": steel["id"], "qty_mode": "FIXED", "base_qty": 1},
+                {"child_item_id": semi["id"], "qty_mode": "FIXED", "base_qty": 2},
+            ]},
+        )
+        assert batch_res.status_code == 200 and batch_res.json()["created_count"] == 2
+
+        # 拖拽换父级：边连同规则整体迁移，只改挂载点
+        edges = client.get(f"/api/v1/bom/edges/{prod['id']}", headers=headers).json()
+        new_edge = next(e for e in edges if e["child_item_id"] == steel["id"])
+        move_res = client.patch(
+            f"/api/v1/bom/edges/{new_edge['id']}/move", headers=headers,
+            json={"parent_id": semi["id"]},
+        )
+        assert move_res.status_code == 200 and move_res.json()["parent_id"] == semi["id"]
+        remaining = client.get(f"/api/v1/bom/edges/{prod['id']}", headers=headers).json()
+        assert all(e["child_item_id"] != steel["id"] for e in remaining)
     finally:
         app.dependency_overrides.clear()
 

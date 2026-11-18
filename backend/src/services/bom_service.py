@@ -47,11 +47,31 @@ class BomService:
         header_id = await self._repo.get_or_create_header(user_id, parent_id)
         return await self._repo.add_edge(user_id, header_id, data)
 
+    async def add_edges_batch(self, user_id: UUID, parent_id: UUID, rows: list[dict[str, Any]]) -> int:
+        """拖拽多选批量挂载：一次环检测 + 单事务 executemany，避免部分插入。"""
+        await self._assert_acyclic(user_id, parent_id, [r["child_item_id"] for r in rows])
+        header_id = await self._repo.get_or_create_header(user_id, parent_id)
+        await self._repo.add_edges_batch(user_id, header_id, [_edge_payload(r) for r in rows])
+        return len(rows)
+
     async def update_edge(self, user_id: UUID, edge_id: UUID, data: dict[str, Any]) -> dict[str, Any] | None:
         return await self._repo.update_edge(edge_id, user_id, data)
 
     async def delete_edge(self, edge_id: UUID, user_id: UUID) -> bool:
         return await self._repo.soft_delete_edge(edge_id, user_id)
+
+    async def move_edge(self, user_id: UUID, edge_id: UUID, new_parent_id: UUID) -> dict[str, Any]:
+        """拖拽换父级：边本身保留（公式/余料策略/附加费全部跟着走），只改挂载点。"""
+        edge = await self._repo.get_edge(edge_id, user_id)
+        if edge is None:
+            raise ValueError("未找到待移动的子件关系")
+        if edge["parent_id"] == new_parent_id:
+            raise ValueError("目标父级与当前父级相同，无需移动")
+        await self._assert_acyclic(user_id, new_parent_id, [edge["child_id"]])
+        header_id = await self._repo.get_or_create_header(user_id, new_parent_id)
+        if not await self._repo.move_edge(edge_id, user_id, header_id):
+            raise ValueError("移动失败，子件关系可能已被移除")
+        return {"edge_id": str(edge_id), "parent_id": str(new_parent_id), "child_id": str(edge["child_id"])}
 
     async def _assert_acyclic(self, user_id: UUID, parent_id: UUID, child_ids: list[UUID]) -> None:
         """单次全量拉边 + 内存环检测：任一 child 已可达 parent 则挂载必成环。

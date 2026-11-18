@@ -7,7 +7,7 @@
 | File | Exports | Internal Deps | Summary |
 | :--- | :--- | :--- | :--- |
 | `backend/src/api/auth.py` | dev_login, register, login, get_me | src.api.deps, src.repositories.user_repo, src.schemas.models | 鉴权接口：支持开发一键切换账号、正式注册与密码登录。 |
-| `backend/src/api/bom.py` | list_bom_items, upsert_bom_item, delete_bom_item, list_bom_edges, create_bom_edge, update_bom_edge, delete_bom_edge, clone_bom_edges, check_bom_formula, seed_bom_data, get_bom_rollup_tree, save_bom_quote, list_bom_quotes, check_bom_stock | src.api.deps, src.schemas.models, src.services.bom_formula, src.services.bom_service | BOM 维护、余料试算、报价快照与跨库库存齐套 REST 接口。 |
+| `backend/src/api/bom.py` | list_bom_items, upsert_bom_item, delete_bom_item, list_bom_edges, create_bom_edge, create_bom_edges_batch, update_bom_edge, move_bom_edge, delete_bom_edge, clone_bom_edges, check_bom_formula, seed_bom_data, get_bom_rollup_tree, save_bom_quote, list_bom_quotes, check_bom_stock | src.api.deps, src.schemas.models, src.services.bom_formula, src.services.bom_service | BOM 维护、余料试算、报价快照与跨库库存齐套 REST 接口。 |
 | `backend/src/api/chat.py` | chat_stream | src.api.deps, src.config, src.core.agent_loop, src.core.event_context, src.core.hooks, src.repositories.inventory_repo, src.repositories.session_repo, src.repositories.trace_repo, src.repositories.workflow_repo, src.schemas.models, src.services.bom_service, src.services.llm_service, src.services.memory_service, src.services.rag_service, src.services.tool_setup, src.services.workflow_skills | 核心流式对话接口（SSE）：支持调试参数、引用持久化与全链路 Trace 记录。 |
 | `backend/src/api/deps.py` | create_access_token, get_user_repo, get_session_repo, get_memory_repo, get_trace_repo, get_doc_repo, get_workflow_repo, get_inventory_repo, get_memory_service, get_llm_service, get_rag_service, get_current_auth, get_bom_repo, get_bom_service, get_menu_repo, get_menu_service | src.config, src.core.event_context, src.repositories.bom_repo, src.repositories.doc_repo, src.repositories.inventory_repo, src.repositories.memory_repo, src.repositories.menu_repo, src.repositories.session_repo, src.repositories.trace_repo, src.repositories.user_repo, src.repositories.workflow_repo, src.schemas.models, src.services.bom_service, src.services.embedding_service, src.services.llm_service, src.services.memory_service, src.services.menu_service, src.services.rag_service | FastAPI 依赖注入装配与 JWT 鉴权（解析 AuthContext 并写入 ContextVar）。 |
 | `backend/src/api/docs.py` | DocIngestRequest, DocSearchRequest, DocDebugSearchRequest, ingest_document, upload_documents, list_documents, delete_document, debug_rag_search, debug_rag_pipeline | src.api.deps, src.repositories.doc_repo, src.schemas.models, src.services.file_parser, src.services.rag_service | 知识库文档管理、分组权限上传与 RAG 透视接口。 |
@@ -26,7 +26,9 @@
 | `backend/src/infra/postgres.py` | create_pg_pool, close_pg_pool | - | PostgreSQL 异步连接池生命周期管理（psycopg3）。 |
 | `backend/src/infra/redis.py` | create_redis_client, close_redis_client | - | Redis 异步连接池管理（本地未启动 Redis 时允许降级运行）。 |
 | `backend/src/main.py` | lifespan, health | src.api, src.config, src.infra.http_client, src.infra.postgres, src.infra.redis, src.repositories.bom_repo | FastAPI 应用入口：通过 lifespan 统一托管 Postgres / Redis / HTTPX 连接池。 |
-| `backend/src/repositories/bom_repo.py` | BomRepo | - | BOM 仓库：独立库 bom_db 读写与自动增量列迁移（强制 user_id 隔离）。 |
+| `backend/src/repositories/bom_quote_repo.py` | insert_quote_snapshot, list_quote_snapshots | - | 报价快照持久化：BomRepo 委托到此模块，避免仓库文件超出行数上限。 |
+| `backend/src/repositories/bom_repo.py` | BomRepo | src.repositories.bom_quote_repo, src.repositories.bom_schema | BOM 仓库：独立库 bom_db 读写与自动增量列迁移（强制 user_id 隔离）。 |
+| `backend/src/repositories/bom_schema.py` | run_v3_migration | - | BOM 库 V3 增量迁移：独立成模块，由 BomRepo 单例在生命周期内调用一次。 |
 | `backend/src/repositories/doc_repo.py` | DocRepo | - | 商业化 RAG 文档与切片仓库（事务原子更新 + 分组数据权限 + GIN 全文检索）。 |
 | `backend/src/repositories/inventory_repo.py` | InventoryRepo | - | 企业物料库存仓库（支持模糊名称检索与安全库存预警判定）。 |
 | `backend/src/repositories/memory_repo.py` | MemoryRepo | - | 语义记忆仓库：memories 表读写（强制 user_id 隔离）。 |
@@ -35,7 +37,7 @@
 | `backend/src/repositories/trace_repo.py` | TraceRepo | - | 轨迹审计仓库：记录每次智能体运行的步骤、耗时与 Token（强制 user_id 隔离）。 |
 | `backend/src/repositories/user_repo.py` | UserRepo | - | 用户与权限数据仓库（支持角色、分组数据权限与 PBKDF2 密码校验）。 |
 | `backend/src/repositories/workflow_repo.py` | WorkflowRepo | - | 企业流程定义与实例数据仓库（配置化流程 + 分页台账 + 幂等审批）。 |
-| `backend/src/schemas/models.py` | AuthContext, ToolCall, ChatMessage, AgentState, SSEEvent, DevLoginRequest, RegisterRequest, LoginRequest, SessionCreate, SessionUpdate, ChatRequest, MemoryCreate, BomItemCreate, BomEdgeCreate, BomEdgeUpdate, BomCloneRequest, QuoteSaveRequest, StockCheckRequest, BomFormulaCheckRequest, SysMenuUpdate | - | 跨层共享 Pydantic v2 契约模型（对标前端 TypeScript Interface）。 |
+| `backend/src/schemas/models.py` | AuthContext, ToolCall, ChatMessage, AgentState, SSEEvent, DevLoginRequest, RegisterRequest, LoginRequest, SessionCreate, SessionUpdate, ChatRequest, MemoryCreate, BomItemCreate, BomEdgeCreate, BomEdgeUpdate, BomEdgeMove, BomEdgeBatchCreate, BomCloneRequest, QuoteSaveRequest, StockCheckRequest, BomFormulaCheckRequest, SysMenuUpdate | - | 跨层共享 Pydantic v2 契约模型（对标前端 TypeScript Interface）。 |
 | `backend/src/services/bm25.py` | tokenize, bm25_rank, rrf_fuse | - | 中英混排 BM25 检索与 RRF 倒数排名融合算法。 |
 | `backend/src/services/bom_costing.py` | BomCostingService, quote_snapshot_to_json | src.repositories.bom_repo, src.services.bom_formula | BOM 成本试算服务：多级递归算价、余料阈值核算、报价快照与跨库库存齐套核查。 |
 | `backend/src/services/bom_formula.py` | dist3d, iif, safe_eval_formula, eval_formula_with_error, calc_remnant_qty | - | 安全 AST 表达式求值器与余料阈值核算：支持 iif() 条件、dist3d() 与整料余料报废计算。 |
@@ -58,11 +60,17 @@
 | File | Exports / Component |
 | :--- | :--- |
 | `frontend/src/App.vue` | App |
-| `frontend/src/api/client.ts` | UserInfo, EvalCase, EvalHit, EvalCaseResult, EvalRunResponse, DocItem, BatchUploadResponse, DebugStageHit, DebugRerankHit, DebugSearchResponse, SessionItem, ActionCardItem, MessageItem, MemoryItem, devLogin, loginUser, registerUser, listSessions, createSession, listSessionMessages, listMemories, createMemory, deleteMemory, fetchEvalCases, seedEvalDocs, runEvalSuite, listDocs, deleteDoc, uploadDocs, debugRagPipeline, ChatDebugOptions, RunStepItem, RunTraceResponse, renameSession, deleteSession, getRunTrace, WorkflowItem, WorkflowListResponse, listWorkflows, submitWorkflow, updateWorkflowStatus, WorkflowFieldDef, WorkflowDefinition, fetchWorkflowSkills, upsertWorkflowDefinition, BomItem, BomEdge, BomRollupResponse, listBomItems, upsertBomItem, deleteBomItem, listBomEdges, createBomEdge, deleteBomEdge, seedBomDemo, fetchBomRollupTree, updateBomEdge, cloneBomStructure, SysMenuItem, fetchVisibleMenus, fetchAllMenus, updateSysMenu, QuoteSnapshotItem, StockCheckItem, saveBomQuote, listBomQuotes, checkBomStock, FormulaCheckResult, checkBomFormula |
+| `frontend/src/api/bomClient.ts` | listBomItems, upsertBomItem, deleteBomItem, listBomEdges, createBomEdge, batchAddBomEdges, moveBomEdge, deleteBomEdge, seedBomDemo, fetchBomRollupTree, updateBomEdge, cloneBomStructure, saveBomQuote, listBomQuotes, checkBomStock, checkBomFormula |
+| `frontend/src/api/bomTypes.ts` | BomItem, BomEdge, BomEdgeRule, BomNode, BomRollupResponse, makeDefaultRule, QuoteSnapshotItem, StockCheckItem, FormulaCheckResult |
+| `frontend/src/api/client.ts` | UserInfo, EvalCase, EvalHit, EvalCaseResult, EvalRunResponse, DocItem, BatchUploadResponse, DebugStageHit, DebugRerankHit, DebugSearchResponse, SessionItem, ActionCardItem, MessageItem, MemoryItem, request, devLogin, loginUser, registerUser, listSessions, createSession, listSessionMessages, listMemories, createMemory, deleteMemory, fetchEvalCases, seedEvalDocs, runEvalSuite, listDocs, deleteDoc, uploadDocs, debugRagPipeline, ChatDebugOptions, RunStepItem, RunTraceResponse, renameSession, deleteSession, getRunTrace, WorkflowItem, WorkflowListResponse, listWorkflows, submitWorkflow, updateWorkflowStatus, WorkflowFieldDef, WorkflowDefinition, fetchWorkflowSkills, upsertWorkflowDefinition, SysMenuItem, fetchVisibleMenus, fetchAllMenus, updateSysMenu |
 | `frontend/src/components/ApiTester.vue` | ApiTester |
+| `frontend/src/components/BomAssembler.vue` | BomAssembler |
 | `frontend/src/components/BomEdgeModal.vue` | BomEdgeModal |
+| `frontend/src/components/BomInspector.vue` | BomInspector |
 | `frontend/src/components/BomItemPanel.vue` | BomItemPanel |
 | `frontend/src/components/BomManager.vue` | BomManager |
+| `frontend/src/components/BomNodeCard.vue` | BomNodeCard |
+| `frontend/src/components/BomPalette.vue` | BomPalette |
 | `frontend/src/components/BomTreeEditor.vue` | BomTreeEditor |
 | `frontend/src/components/ChatWorkspace.vue` | ChatWorkspace |
 | `frontend/src/components/EvalDashboard.vue` | EvalDashboard |
@@ -75,6 +83,8 @@
 | `frontend/src/components/WorkflowCenter.vue` | WorkflowCenter |
 | `frontend/src/composables/useAgentStream.ts` | TraceLog, useAgentStream |
 | `frontend/src/composables/useBom.ts` | useBom |
+| `frontend/src/composables/useBomDrag.ts` | MAX_DEPTH, NodeMeta, TreeIndex, DropVerdict, UndoEntry, nodeKey, buildTreeIndex, useBomDrag |
 | `frontend/src/composables/useMemories.ts` | useMemories |
 | `frontend/src/main.ts` | - |
+| `frontend/src/utils/bomCsv.ts` | exportBomCsv |
 | `frontend/src/utils/markdown.ts` | renderMarkdown |

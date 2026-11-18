@@ -2,12 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { useBom } from '../composables/useBom'
 import type { QuoteSnapshotItem } from '../api/bomClient'
+import { exportBomCsv } from '../utils/bomCsv'
+import BomAssembler from './BomAssembler.vue'
 import BomEdgeModal from './BomEdgeModal.vue'
 
 const props = defineProps<{ token: string }>()
 const { items, edges, rollup, quotes, stockItems, sandbox3d, refreshEdges, refreshTreeOnly, addEdge, saveEdge, removeEdge, cloneBom, runStockCheck, createQuote, loadQuotes } = useBom()
 
 const rootId = ref('')
+const mode = ref<'assemble' | 'table'>('assemble')
 const activeParentId = ref('')
 const cloneFromId = ref('')
 const modalOpen = ref(false)
@@ -63,15 +66,6 @@ function handleCompare(q: QuoteSnapshotItem) {
   compareBase.value = null
 }
 
-function exportCsv() {
-  if (!rollup.value) return
-  const rows = [['层级名称', 'SKU', '计价用量', '余料报废', '附加费', '小计(元)', '余料备注']]
-  const walk = (n: any) => { rows.push([n.name, n.sku_code, n.qty, n.scrap_qty || 0, n.extra_cost || 0, n.subtotal, n.remnant_note || '']); (n.children || []).forEach(walk) }
-  walk(rollup.value.root)
-  const blob = new Blob(['﻿' + rows.map((r) => r.join(',')).join("\\n")], { type: 'text/csv;charset=utf-8;' })
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${rollup.value.root.sku_code}_BOM报价.csv`; a.click()
-}
-
 onMounted(async () => {
   await loadQuotes(props.token)
   if (parentOptions.value.length) await selectNode(parentOptions.value[0].id, true)
@@ -81,6 +75,10 @@ onMounted(async () => {
 <template>
   <div class="tree-editor">
     <div class="sandbox-bar">
+      <div class="mode-switch">
+        <button :class="{ on: mode === 'assemble' }" @click="mode = 'assemble'">拼装</button>
+        <button :class="{ on: mode === 'table' }" @click="mode = 'table'">表格</button>
+      </div>
       <strong>3D 沙盒(mm)：</strong>
       <label>H <input v-model.number="sandbox3d.h" type="number" class="num-inp" @change="refreshTreeOnly(token, rootId)" /></label>
       <label>W <input v-model.number="sandbox3d.w" type="number" class="num-inp" @change="refreshTreeOnly(token, rootId)" /></label>
@@ -90,14 +88,15 @@ onMounted(async () => {
       <label>毛利% <input v-model.number="marginPct" type="number" min="0" max="80" class="num-inp" style="width: 52px" /></label>
       <label>税% <input v-model.number="taxPct" type="number" min="0" max="30" class="num-inp" style="width: 52px" /></label>
       <button class="btn btn-primary" @click="handleSaveQuote">冻结报价快照</button>
-      <button class="btn" @click="exportCsv">导出 CSV</button>
+      <button class="btn" @click="exportBomCsv(rollup?.root ?? null)">导出 CSV</button>
       <div v-if="rollup" class="cost-pills">
         <span class="badge badge-ok">成本 ¥{{ rollup.root.subtotal }}</span>
         <span v-for="(v, k) in rollup.cost_summary" :key="k" class="badge badge-blue">{{ k }} ¥{{ v }}</span>
       </div>
     </div>
 
-    <div class="split-pane">
+    <BomAssembler v-if="mode === 'assemble'" :token="token" :root-id="rootId" />
+    <div v-else class="split-pane">
       <aside class="tree-left">
         <select v-model="rootId" class="sel" style="width: 100%; margin-bottom: 8px" @change="selectNode(rootId, true)">
           <option v-for="p in parentOptions" :key="p.id" :value="p.id">{{ p.sku_code }} · {{ p.name }}</option>
@@ -174,6 +173,9 @@ onMounted(async () => {
 <style scoped>
 .tree-editor { display: flex; flex-direction: column; gap: 12px; }
 .sandbox-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 10px; font-size: 13px; }
+.mode-switch { display: flex; border: 1px solid #93c5fd; border-radius: 7px; overflow: hidden; flex: none; }
+.mode-switch button { font-size: 12px; padding: 5px 12px; border: none; background: #fff; color: #1d4ed8; cursor: pointer; }
+.mode-switch button.on { background: #1d4ed8; color: #fff; }
 .cost-pills { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
 .split-pane { display: grid; grid-template-columns: 320px 1fr; gap: 14px; align-items: start; }
 .tree-left { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }

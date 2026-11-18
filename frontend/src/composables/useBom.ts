@@ -1,9 +1,9 @@
 import { ref } from 'vue'
 import {
-  checkBomStock, cloneBomStructure, createBomEdge, deleteBomEdge, deleteBomItem,
-  fetchBomRollupTree, listBomEdges, listBomItems, listBomQuotes, saveBomQuote,
-  seedBomDemo, updateBomEdge, upsertBomItem,
-  type BomEdge, type BomItem, type BomRollupResponse, type QuoteSnapshotItem, type StockCheckItem,
+  batchAddBomEdges, checkBomStock, cloneBomStructure, createBomEdge, deleteBomEdge, deleteBomItem,
+  fetchBomRollupTree, listBomEdges, listBomItems, listBomQuotes, makeDefaultRule,
+  moveBomEdge, saveBomQuote, seedBomDemo, updateBomEdge, upsertBomItem,
+  type BomEdge, type BomEdgeRule, type BomItem, type BomRollupResponse, type QuoteSnapshotItem, type StockCheckItem,
 } from '../api/bomClient'
 
 const items = ref<BomItem[]>([])
@@ -34,10 +34,27 @@ export function useBom() {
   async function refreshTreeOnly(token: string, rootId: string) {
     if (token && rootId) rollup.value = await fetchBomRollupTree(token, rootId, sandbox3d.value)
   }
-  async function addEdge(token: string, parentId: string, payload: Record<string, unknown>, treeRootId?: string) {
+  async function addEdge(token: string, parentId: string, payload: object, treeRootId?: string) {
     await createBomEdge(token, parentId, payload as never); await refreshEdges(token, parentId, treeRootId)
   }
-  async function saveEdge(token: string, edgeId: string, parentId: string, payload: Record<string, unknown>, treeRootId?: string) {
+  async function addEdgesMany(token: string, parentId: string, rows: Array<BomEdgeRule & { child_item_id: string }>, treeRootId?: string) {
+    await batchAddBomEdges(token, parentId, rows)
+    await refreshTreeOnly(token, treeRootId || parentId)
+  }
+  async function moveEdge(token: string, edgeId: string, newParentId: string, treeRootId?: string) {
+    await moveBomEdge(token, edgeId, newParentId)
+    await refreshTreeOnly(token, treeRootId || newParentId)
+  }
+  async function dropItems(token: string, parentId: string, items: BomItem[], treeRootId?: string) {
+    const rows = items.map((i) => makeDefaultRule(i.id, i.category))
+    await addEdgesMany(token, parentId, rows, treeRootId)
+    return rows.length
+  }
+  async function loadEdgeDetail(token: string, parentId: string, edgeId: string): Promise<BomEdge | null> {
+    const rows = await listBomEdges(token, parentId)
+    return rows.find((r) => r.id === edgeId) ?? null
+  }
+  async function saveEdge(token: string, edgeId: string, parentId: string, payload: object, treeRootId?: string) {
     await updateBomEdge(token, edgeId, payload as never); await refreshEdges(token, parentId, treeRootId)
   }
   async function removeEdge(token: string, parentId: string, edgeId: string, treeRootId?: string) {
@@ -66,6 +83,7 @@ export function useBom() {
   return {
     items, edges, rollup, quotes, stockItems, sandbox3d, loading,
     refreshItems, saveItem, removeItem, refreshEdges, refreshTreeOnly,
-    addEdge, saveEdge, removeEdge, cloneBom, runStockCheck, createQuote, loadQuotes, seedDemo,
+    addEdge, addEdgesMany, dropItems, moveEdge, loadEdgeDetail,
+    saveEdge, removeEdge, cloneBom, runStockCheck, createQuote, loadQuotes, seedDemo,
   }
 }

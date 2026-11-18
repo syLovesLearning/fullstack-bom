@@ -47,6 +47,8 @@
 - `DELETE /bom/items/{item_id}` -> `{deleted: bool}`（软删除 `is_active = FALSE`）
 - `GET /bom/edges/{parent_id}` -> `BomEdge[]`（查询指定成品/半成品下的直属子件）
 - `POST /bom/edges/{parent_id}` -> `BomEdgeCreate` -> `BomEdge`（含 DAG 环路检测防死循环）
+- `POST /bom/edges/{parent_id}/batch` -> `{rows: BomEdgeCreate[]}` -> `{created_count: int}`（**拖拽多选落地**：一次环检测 + 单事务 executemany，最多 50 行）
+- `PATCH /bom/edges/{edge_id}/move` -> `{parent_id}` -> `{edge_id, parent_id, child_id}`（**拖拽换父级**：边连同公式/余料/附加费整体迁移，仅改 `bom_header_id`；含环检测，同父级视为无效操作报 400）
 - `DELETE /bom/edges/{edge_id}` -> `{deleted: bool}`
 - `POST /bom/seed` -> `{seeded_items: int, seeded_edges: int}`（一键初始化示例机柜多级 BOM）
 - `GET /bom/tree/{root_id}` -> `{root: BomTreeNode, cost_summary: dict, bom_summary: dict}`（递归展开多级树并输出成本向/BOM向双视图试算）
@@ -54,13 +56,12 @@
 - `POST /bom/clone` -> `{source_parent_id, target_parent_id}` -> `{cloned_count: int}`（一键克隆 BOM 结构，单事务批量写入）
 - `POST /bom/formula/check` -> `{expr, env}` -> `{ok: bool, value: float|null, error: str}`（公式试算校验，前端编辑实时反馈）
 - `GET /bom/tree/{root_id}?h=2200&w=800&d=600&t=2.0` -> 支持传入 3D 沙盒参数实时求值 `FORMULA_3D`
+- `POST /bom/quotes` -> `{root_id, params_3d, margin_rate, tax_rate, note}` -> `QuoteSnapshot`（冻结当前 BOM 试算结果与余料损耗）
+- `GET /bom/quotes` -> `QuoteSnapshot[]`（查看历史报价快照）
+- `POST /bom/stock-check` -> `{root_id, h, w, d, t}` -> `StockCheckItem[]`（跨库查询 `rag_db.inventory_items` 核对材料齐套状态）
 
 ## 5. 数据库动态菜单配置 (`rag_db.sys_menus`)
 
 - `GET /menus` -> `SysMenuItem[]`（按当前 `AuthContext.role` 与 `is_enabled = TRUE` 过滤并按 `sort_order` 排序）
 - `GET /menus/all` -> `SysMenuItem[]`（管理员查看全部菜单配置项）
 - `PUT /menus/{menu_key}` -> `SysMenuUpdate` -> `SysMenuItem`（动态修改菜单标题、分组、排序、角色白名单与启停状态）
-
-- `POST /bom/quotes` -> `{root_id, params_3d, margin_rate, tax_rate, note}` -> `QuoteSnapshot`（冻结当前 BOM 试算结果与余料损耗）
-- `GET /bom/quotes` -> `QuoteSnapshot[]`（查看历史报价快照）
-- `POST /bom/stock-check` -> `{root_id, h, w, d, t}` -> `StockCheckItem[]`（跨库查询 `rag_db.inventory_items` 核对材料齐套状态）
