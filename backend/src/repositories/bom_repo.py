@@ -81,13 +81,16 @@ class BomRepo:
                 return await cur.fetchone() is not None
 
     async def get_or_create_header(self, user_id: UUID, item_id: UUID) -> UUID:
+        # INSERT ON CONFLICT 消除 SELECT-then-INSERT 竞态（并发创建撞 UNIQUE(item_id, version) 直接 500）
+        sql = """
+            INSERT INTO bom_headers (user_id, item_id, version, status)
+            VALUES (%s, %s, 'V1.0', 'ACTIVE')
+            ON CONFLICT (item_id, version) DO UPDATE SET status = 'ACTIVE'
+            RETURNING id;
+        """
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
-                await cur.execute("SELECT id FROM bom_headers WHERE user_id = %s AND item_id = %s AND status = 'ACTIVE' LIMIT 1;", (user_id, item_id))
-                row = await cur.fetchone()
-                if row:
-                    return row["id"]
-                await cur.execute("INSERT INTO bom_headers (user_id, item_id, version, status) VALUES (%s, %s, 'V1.0', 'ACTIVE') RETURNING id;", (user_id, item_id))
+                await cur.execute(sql, (user_id, item_id))
                 return (await cur.fetchone())["id"]  # type: ignore[index]
 
     async def list_edges(self, user_id: UUID, parent_id: UUID) -> list[dict[str, Any]]:
@@ -140,6 +143,24 @@ class BomRepo:
                      data.get("min_remnant", 0.0), data.get("loss_rate", 0.0), data.get("float_factor", 1.0), data["bom_group"], data["cost_group"]),
                 )
                 return dict(await cur.fetchone())  # type: ignore[arg-type]
+
+    async def add_edges_batch(self, user_id: UUID, header_id: UUID, rows: list[dict[str, Any]]) -> None:
+        """单事务批量写入 BOM 子件（executemany），用于 clone 与 seed 的 O(E) 写入路径。"""
+        sql = """
+            INSERT INTO bom_edges (user_id, bom_header_id, child_item_id, qty_mode, base_qty, formula_expr,
+                                   extra_cost_expr, remnant_policy, unit_pack_size, min_remnant, loss_rate,
+                                   float_factor, bom_group, cost_group)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+        """
+        params = [
+            (user_id, header_id, r["child_item_id"], r["qty_mode"], r["base_qty"], r.get("formula_expr", ""),
+             r.get("extra_cost_expr", ""), r.get("remnant_policy", "CONTINUOUS"), r.get("unit_pack_size", 1.0),
+             r.get("min_remnant", 0.0), r.get("loss_rate", 0.0), r.get("float_factor", 1.0), r["bom_group"], r["cost_group"])
+            for r in rows
+        ]
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.executemany(sql, params)
 
     async def update_edge(self, edge_id: UUID, user_id: UUID, data: dict[str, Any]) -> dict[str, Any] | None:
         sql = """

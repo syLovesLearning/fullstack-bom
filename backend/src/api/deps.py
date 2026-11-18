@@ -116,8 +116,13 @@ async def get_current_auth(
 
 
 def get_bom_repo(request: Request) -> BomRepo:
-    pool = getattr(request.app.state, "bom_pool", None) or request.app.state.pg_pool
-    return BomRepo(pool)
+    # 单例复用：lifespan 已预热迁移并缓存到 app.state.bom_repo
+    repo = getattr(request.app.state, "bom_repo", None)
+    if repo is None:
+        pool = getattr(request.app.state, "bom_pool", None) or request.app.state.pg_pool
+        repo = BomRepo(pool)
+        request.app.state.bom_repo = repo
+    return repo
 
 
 def get_bom_service(repo: BomRepo = Depends(get_bom_repo), inv_repo: InventoryRepo = Depends(get_inventory_repo)) -> BomService:

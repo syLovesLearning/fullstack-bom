@@ -11,12 +11,17 @@ from src.config import settings
 from src.infra.http_client import close_http_client, create_http_client
 from src.infra.postgres import close_pg_pool, create_pg_pool
 from src.infra.redis import close_redis_client, create_redis_client
+from src.repositories.bom_repo import BomRepo
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.pg_pool = await create_pg_pool(settings.pg_dsn)
     app.state.bom_pool = await create_pg_pool(settings.bom_pg_dsn)
+    # 启动时一次性完成 BOM 增量迁移，避免每个请求重复执行 6 条 DDL
+    bom_repo = BomRepo(app.state.bom_pool)
+    await bom_repo.ensure_v3_schema()
+    app.state.bom_repo = bom_repo
     app.state.redis = await create_redis_client(settings.redis_url)
     app.state.http_client = create_http_client()
     try:

@@ -31,6 +31,17 @@ def safe_eval_formula(expr: str, env: dict[str, float], fallback: float = 0.0) -
         return fallback
 
 
+def eval_formula_with_error(expr: str, env: dict[str, float]) -> tuple[float | None, str]:
+    """公式试算（带错误信息返回）：供前端实时校验，避免写错公式静默归零。"""
+    if not expr or not expr.strip():
+        return None, "公式为空"
+    try:
+        tree = ast.parse(expr.strip(), mode="eval")
+        return float(_eval_node(tree, env)), ""
+    except Exception as exc:
+        return None, f"公式无法求值：{exc}"
+
+
 def _eval_node(node: ast.AST, env: dict[str, float]) -> Any:
     if isinstance(node, ast.Expression):
         return _eval_node(node.body, env)

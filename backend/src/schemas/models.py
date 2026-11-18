@@ -142,6 +142,12 @@ class StockCheckRequest(BaseModel):
     d: float = 600.0
     t: float = 2.0
 
+
+class BomFormulaCheckRequest(BaseModel):
+    expr: str = Field(min_length=1, max_length=512)
+    env: dict[str, float] = Field(default_factory=lambda: {"H": 2200.0, "W": 800.0, "D": 600.0, "T": 2.0})
+
+
 class SysMenuUpdate(BaseModel):
     title: str = Field(min_length=1, max_length=64)
     group_name: str = Field(min_length=1, max_length=64)

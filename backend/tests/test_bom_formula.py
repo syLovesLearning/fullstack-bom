@@ -2,7 +2,7 @@
 
 import math
 
-from src.services.bom_formula import calc_remnant_qty, dist3d, safe_eval_formula
+from src.services.bom_formula import calc_remnant_qty, dist3d, eval_formula_with_error, safe_eval_formula
 
 
 class TestSafeEvalFormula:
@@ -56,6 +56,24 @@ class TestSafeEvalFormula:
         res = safe_eval_formula("2 * 3", {})
         assert isinstance(res, float)
         assert math.isfinite(res)
+
+
+class TestEvalFormulaWithError:
+    def test_valid_expr_returns_value_and_empty_error(self) -> None:
+        value, err = eval_formula_with_error("(2*(H*W+H*D+W*D)/1000000.0)*T*7.85", {"H": 2200.0, "W": 800.0, "D": 600.0, "T": 2.0})
+        assert err == ""
+        # 2*(1760000+1320000+480000)/1e6 × 2 × 7.85 = 111.784
+        assert math.isclose(value, 111.784, rel_tol=1e-6)  # type: ignore[arg-type]
+
+    def test_invalid_expr_returns_error_message(self) -> None:
+        value, err = eval_formula_with_error("H ** 2", {"H": 3.0})
+        assert value is None
+        assert "无法求值" in err
+
+    def test_empty_expr_returns_error(self) -> None:
+        value, err = eval_formula_with_error("  ", {})
+        assert value is None
+        assert err == "公式为空"
 
 
 class TestCalcRemnantQty:

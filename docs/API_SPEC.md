@@ -51,7 +51,8 @@
 - `POST /bom/seed` -> `{seeded_items: int, seeded_edges: int}`（一键初始化示例机柜多级 BOM）
 - `GET /bom/tree/{root_id}` -> `{root: BomTreeNode, cost_summary: dict, bom_summary: dict}`（递归展开多级树并输出成本向/BOM向双视图试算）
 - `PATCH /bom/edges/{edge_id}` -> `BomEdgeUpdate` -> `BomEdge`（行内编辑用量、3D公式、人工浮动与归类）
-- `POST /bom/clone` -> `{source_parent_id, target_parent_id}` -> `{cloned_count: int}`（一键克隆 BOM 结构）
+- `POST /bom/clone` -> `{source_parent_id, target_parent_id}` -> `{cloned_count: int}`（一键克隆 BOM 结构，单事务批量写入）
+- `POST /bom/formula/check` -> `{expr, env}` -> `{ok: bool, value: float|null, error: str}`（公式试算校验，前端编辑实时反馈）
 - `GET /bom/tree/{root_id}?h=2200&w=800&d=600&t=2.0` -> 支持传入 3D 沙盒参数实时求值 `FORMULA_3D`
 
 ## 5. 数据库动态菜单配置 (`rag_db.sys_menus`)

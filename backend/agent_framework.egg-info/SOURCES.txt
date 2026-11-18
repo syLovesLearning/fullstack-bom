@@ -39,6 +39,7 @@ src/schemas/models.py
 src/services/bm25.py
 src/services/bom_formula.py
 src/services/bom_service.py
+src/services/bom_tools.py
 src/services/chunker.py
 src/services/embedding_service.py
 src/services/eval_service.py
@@ -51,4 +52,7 @@ src/services/tool_setup.py
 src/services/workflow_skills.py
 tests/test_agent_loop.py
 tests/test_api_smoke.py
+tests/test_bom_costing.py
+tests/test_bom_formula.py
+tests/test_bom_tools.py
 tests/test_rag_pipeline.py

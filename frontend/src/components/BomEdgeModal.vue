@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { reactive, ref, watch } from 'vue'
+import { checkBomFormula, type FormulaCheckResult } from '../api/client'
 import type { BomItem } from '../api/client'
 
 const props = defineProps<{
   visible: boolean
+  token: string
   items: BomItem[]
   editingEdge: Record<string, any> | null
 }>()
@@ -15,7 +17,14 @@ const form = reactive({
   float_factor: 1.0, bom_group: '材料', cost_group: '基材',
 })
 
+const formulaCheck = ref<FormulaCheckResult | null>(null)
+const extraCheck = ref<FormulaCheckResult | null>(null)
+const checking = ref(false)
+const SANDBOX_ENV = { H: 2200, W: 800, D: 600, T: 2.0 }
+
 watch(() => props.editingEdge, (val) => {
+  formulaCheck.value = null
+  extraCheck.value = null
   if (val) Object.assign(form, val)
   else Object.assign(form, {
     child_item_id: props.items[0]?.id || '', qty_mode: 'FIXED', base_qty: 1, formula_expr: '', extra_cost_expr: '',
@@ -23,9 +32,19 @@ watch(() => props.editingEdge, (val) => {
   })
 }, { immediate: true })
 
+async function validateExpr(target: 'formula' | 'extra') {
+  const expr = target === 'formula' ? form.formula_expr : form.extra_cost_expr
+  const holder = target === 'formula' ? formulaCheck : extraCheck
+  if (!expr.trim() || !props.token) { holder.value = null; return }
+  checking.value = true
+  try { holder.value = await checkBomFormula(props.token, expr, SANDBOX_ENV) }
+  finally { checking.value = false }
+}
+
 function insertTpl(target: 'formula' | 'extra', expr: string) {
   if (target === 'formula') { form.qty_mode = 'FORMULA_3D'; form.formula_expr = expr }
   else form.extra_cost_expr = expr
+  void validateExpr(target)
 }
 </script>
 
@@ -72,7 +91,10 @@ function insertTpl(target: 'formula' | 'extra', expr: string) {
       </div>
 
       <label v-if="form.qty_mode === 'FORMULA_3D'" class="full-lbl">用量公式 (`H/W/D/T`、`dist3d`、`iif`)
-        <input v-model="form.formula_expr" class="inp" placeholder="例: iif(W >= 1000, base_qty * 1.2, base_qty)" />
+        <input v-model="form.formula_expr" class="inp" placeholder="例: iif(W >= 1000, base_qty * 1.2, base_qty)" @blur="validateExpr('formula')" />
+        <div v-if="formulaCheck" :class="['check-line', formulaCheck.ok ? 'check-ok' : 'check-err']">
+          {{ formulaCheck.ok ? `✓ 试算通过（沙盒 2200×800×600×2.0 → ${formulaCheck.value}）` : `✗ ${formulaCheck.error}` }}
+        </div>
         <div class="tpl-row">
           <button class="chip" @click="insertTpl('formula', 'iif(W >= 1000, base_qty * 1.2, base_qty)')">宽度>=1000加量20%</button>
           <button class="chip" @click="insertTpl('formula', '(2*(H*W+H*D+W*D)/1000000.0)*T*7.85')">钢板展开重量</button>
@@ -80,7 +102,10 @@ function insertTpl(target: 'formula' | 'extra', expr: string) {
       </label>
 
       <label class="full-lbl">特殊附加成本公式 (元，可直接加减特殊料/工艺费)
-        <input v-model="form.extra_cost_expr" class="inp" placeholder="例: iif(W >= 1000, 120, -10)" />
+        <input v-model="form.extra_cost_expr" class="inp" placeholder="例: iif(W >= 1000, 120, -10)" @blur="validateExpr('extra')" />
+        <div v-if="extraCheck" :class="['check-line', extraCheck.ok ? 'check-ok' : 'check-err']">
+          {{ extraCheck.ok ? `✓ 试算通过（沙盒 → ¥${extraCheck.value}）` : `✗ ${extraCheck.error}` }}
+        </div>
         <div class="tpl-row">
           <button class="chip" @click="insertTpl('extra', 'iif(W >= 1000, 120, -10)')">iif(W>=1000, +120, -10)</button>
           <button class="chip" @click="insertTpl('extra', 'iif(qty > 150, 80, 0)')">超150加收特殊料费80</button>
@@ -105,4 +130,7 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color:
 .inp { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; color: #0f172a; }
 .tpl-row { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .chip { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; cursor: pointer; }
+.check-line { font-size: 12px; margin-top: 2px; }
+.check-ok { color: #15803d; }
+.check-err { color: #d93025; }
 </style>

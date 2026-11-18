@@ -138,7 +138,7 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-    <BomEdgeModal :visible="modalOpen" :items="items" :editing-edge="editingEdge" @close="modalOpen = false" @submit="handleModalSubmit" />
+    <BomEdgeModal :visible="modalOpen" :token="token" :items="items" :editing-edge="editingEdge" @close="modalOpen = false" @submit="handleModalSubmit" />
   </div>
 </template>
 

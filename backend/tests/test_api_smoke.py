@@ -143,6 +143,10 @@ class FakeBomRepo:
         self.edges.append(row)
         return row
 
+    async def add_edges_batch(self, user_id: UUID, header_id: UUID, rows: list[dict]) -> None:
+        for data in rows:
+            self.edges.append({"id": uuid4(), "user_id": user_id, "parent_id": header_id, "is_active": True, **data})
+
     async def soft_delete_edge(self, edge_id: UUID, user_id: UUID) -> bool:
         for e in self.edges:
             if e["id"] == edge_id and e["user_id"] == user_id:

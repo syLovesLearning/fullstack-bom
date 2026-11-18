@@ -575,3 +575,16 @@ export function listBomQuotes(token: string) {
 export function checkBomStock(token: string, payload: { root_id: string; h: number; w: number; d: number; t: number }) {
   return request<StockCheckItem[]>('/api/v1/bom/stock-check', token, { method: 'POST', body: JSON.stringify(payload) })
 }
+
+export interface FormulaCheckResult {
+  ok: boolean
+  value: number | null
+  error: string
+}
+
+export function checkBomFormula(token: string, expr: string, env?: { H: number; W: number; D: number; T: number }) {
+  return request<FormulaCheckResult>('/api/v1/bom/formula/check', token, {
+    method: 'POST',
+    body: JSON.stringify({ expr, env: env ?? { H: 2200, W: 800, D: 600, T: 2.0 } }),
+  })
+}
