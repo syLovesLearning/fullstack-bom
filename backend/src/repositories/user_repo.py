@@ -39,7 +39,7 @@ class UserRepo:
         self, username: str, role: str = "admin", groups: list[str] | None = None
     ) -> dict[str, Any]:
         if role in ("admin", "user"):
-            default_tools = ["rag_search", "memory_save", "submit_workflow_form", "query_recent_workflows", "query_inventory"]
+            default_tools = ["rag_search", "memory_save", "submit_workflow_form", "query_recent_workflows", "query_inventory", "bom_quote", "bom_stock_check"]
         elif role == "external_guest":
             default_tools = ["rag_search", "submit_workflow_form", "query_recent_workflows"]
         else:
@@ -65,7 +65,7 @@ class UserRepo:
         self, username: str, password: str, role: str, groups: list[str]
     ) -> dict[str, Any] | None:
         if role in ("admin", "user"):
-            default_tools = ["rag_search", "memory_save", "submit_workflow_form", "query_recent_workflows", "query_inventory"]
+            default_tools = ["rag_search", "memory_save", "submit_workflow_form", "query_recent_workflows", "query_inventory", "bom_quote", "bom_stock_check"]
         elif role == "external_guest":
             default_tools = ["rag_search", "submit_workflow_form", "query_recent_workflows"]
         else:

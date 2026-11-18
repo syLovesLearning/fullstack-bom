@@ -233,6 +233,22 @@ onMounted(initWorkspace)
                   <button class="btn" @click="emit('goWorkflow')">前往流程中心 →</button>
                 </div>
               </template>
+              <template v-else-if="card.kind === 'bom_quote'">
+                <div class="card-info">
+                  <span class="badge badge-blue">BOM 试算报价</span>
+                  <strong>{{ card.root_name }}</strong>
+                  <span v-if="card.params_3d">
+                    {{ card.params_3d.H }}×{{ card.params_3d.W }}×{{ card.params_3d.D }} · 板厚 {{ card.params_3d.T }}mm
+                  </span>
+                  <span>
+                    直接成本 ¥{{ (card.direct_cost ?? 0).toFixed(2) }} · 报价
+                    <strong class="quote-price">¥{{ (card.final_price ?? 0).toFixed(2) }}</strong>
+                  </span>
+                  <span v-if="card.cost_summary" class="quote-breakdown">
+                    {{ Object.entries(card.cost_summary).filter(([, v]) => v > 0).map(([k, v]) => `${k} ¥${v.toFixed(2)}`).join(' / ') }}
+                  </span>
+                </div>
+              </template>
               <template v-else>
                 <div class="card-info">
                   <span class="badge badge-err">低库存预警</span>
@@ -405,6 +421,8 @@ h3 { margin: 0; font-size: 13px; color: var(--muted); }
 .action-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .card-info { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
 .card-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.quote-price { color: #d93025; font-size: 15px; }
+.quote-breakdown { color: var(--muted); font-size: 12px; width: 100%; }
 
 .debug-bar { border-top: 1px solid var(--border); padding-top: 6px; font-size: 12px; color: var(--muted); }
 .toggle-debug { border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 0; font-size: 12px; }

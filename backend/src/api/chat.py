@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from src.api.deps import (
+    get_bom_service,
     get_current_auth,
     get_llm_service,
     get_memory_service,
@@ -38,6 +39,7 @@ from src.schemas.models import AgentState, AuthContext, ChatRequest, SSEEvent, T
 from src.services.llm_service import LLMService
 from src.services.memory_service import MemoryService
 from src.services.rag_service import RagService
+from src.services.bom_service import BomService
 from src.services.tool_setup import build_tool_registry
 from src.services.workflow_skills import build_workflow_skill_prompt
 
@@ -56,6 +58,7 @@ async def chat_stream(
     rag_service: RagService = Depends(get_rag_service),
     workflow_repo: WorkflowRepo = Depends(get_workflow_repo),
     inventory_repo: InventoryRepo = Depends(get_inventory_repo),
+    bom_service: BomService = Depends(get_bom_service),
 ) -> StreamingResponse:
     session = await session_repo.get_session(session_id=session_id, user_id=auth.user_id)
     if not session:
@@ -137,7 +140,7 @@ async def chat_stream(
             )
 
         hooks = AgentHooks(after_tool=[record_tool_step])
-        registry = build_tool_registry(rag_service=rag_service, memory_service=memory_service, workflow_repo=workflow_repo, inventory_repo=inventory_repo)
+        registry = build_tool_registry(rag_service=rag_service, memory_service=memory_service, workflow_repo=workflow_repo, inventory_repo=inventory_repo, bom_service=bom_service)
         loop = AgentLoop(llm=llm_service, registry=registry, hooks=hooks)
 
         async def run_agent() -> None:

@@ -21,7 +21,7 @@ const messages = ref<MessageItem[]>([])
 const input = ref('')
 const bodyEl = ref<HTMLElement | null>(null)
 
-const { streaming, answer, statusText, actionCards, streamChat } = useAgentStream()
+const { streaming, answer, errorMsg, actionCards, sendMessage } = useAgentStream()
 const { memories, refreshMemories } = useMemories()
 
 async function ensureSession() {
@@ -45,7 +45,7 @@ async function sendQuick(promptText?: string) {
   messages.value.push({ role: 'user', content: q })
   await nextTick(() => bodyEl.value?.scrollTo({ top: bodyEl.value.scrollHeight }))
 
-  await streamChat(props.token, sessionId.value, q, {
+  await sendMessage(props.token, sessionId.value, q, {
     max_steps: 6,
     top_k: 3,
     min_score: 0.2,
@@ -121,7 +121,7 @@ onMounted(() => {
         </div>
 
         <div v-if="streaming" class="msg-row assistant">
-          <div class="status-line">{{ statusText || '思考与调用工具中...' }}</div>
+          <div class="status-line">{{ errorMsg || '思考与调用工具中...' }}</div>
           <div class="bubble" v-html="renderMarkdown(answer || '...')"></div>
         </div>
       </div>

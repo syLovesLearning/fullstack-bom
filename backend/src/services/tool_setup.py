@@ -1,4 +1,4 @@
-"""将 Services 能力（RAG、记忆、配置化流程、近期流程查询、库存检索）注册为 Tool。"""
+"""将 Services 能力（RAG、记忆、配置化流程、近期流程查询、库存检索、BOM 试算）注册为 Tool。"""
 
 import json
 from typing import Any, Literal
@@ -8,6 +8,8 @@ from src.core.event_context import emit_event, get_auth_context
 from src.core.tool_registry import ToolRegistry
 from src.repositories.inventory_repo import InventoryRepo
 from src.repositories.workflow_repo import WorkflowRepo
+from src.services.bom_service import BomService
+from src.services.bom_tools import register_bom_tools
 from src.services.memory_service import MemoryService
 from src.services.rag_service import RagService
 from src.services.workflow_skills import validate_dynamic_workflow
@@ -42,6 +44,7 @@ def build_tool_registry(
     memory_service: MemoryService,
     workflow_repo: WorkflowRepo | None = None,
     inventory_repo: InventoryRepo | None = None,
+    bom_service: BomService | None = None,
 ) -> ToolRegistry:
     registry = ToolRegistry()
 
@@ -151,5 +154,8 @@ def build_tool_registry(
             if low_cards:
                 await emit_event("action_cards", {"items": low_cards})
             return json.dumps({"keyword": args.keyword, "items": rows, "cards": low_cards}, ensure_ascii=False)
+
+    if bom_service is not None:
+        register_bom_tools(registry, bom_service)
 
     return registry

@@ -100,7 +100,7 @@ export interface SessionItem {
 }
 
 export interface ActionCardItem {
-  kind: 'workflow' | 'inventory_alert'
+  kind: 'workflow' | 'inventory_alert' | 'bom_quote'
   id?: string
   flow_code?: 'oa_approval' | 'srm_bidding'
   title?: string
@@ -112,6 +112,11 @@ export interface ActionCardItem {
   safety_stock?: number
   unit?: string
   warehouse?: string
+  root_name?: string
+  params_3d?: { H: number; W: number; D: number; T: number }
+  direct_cost?: number
+  final_price?: number
+  cost_summary?: Record<string, number>
 }
 
 export interface MessageItem {

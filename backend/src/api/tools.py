@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.deps import (
+    get_bom_service,
     get_current_auth,
     get_memory_service,
     get_rag_service,
@@ -13,6 +14,7 @@ from src.api.deps import (
 )
 from src.repositories.trace_repo import TraceRepo
 from src.schemas.models import AuthContext
+from src.services.bom_service import BomService
 from src.services.memory_service import MemoryService
 from src.services.rag_service import RagService
 from src.services.tool_setup import build_tool_registry
@@ -25,8 +27,9 @@ async def list_available_tools(
     auth: AuthContext = Depends(get_current_auth),
     rag_service: RagService = Depends(get_rag_service),
     memory_service: MemoryService = Depends(get_memory_service),
+    bom_service: BomService = Depends(get_bom_service),
 ) -> list[dict[str, Any]]:
-    registry = build_tool_registry(rag_service=rag_service, memory_service=memory_service)
+    registry = build_tool_registry(rag_service=rag_service, memory_service=memory_service, bom_service=bom_service)
     return registry.list_schemas(allowed_tools=auth.allowed_tools)
 
 

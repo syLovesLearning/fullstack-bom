@@ -28,6 +28,9 @@
 - `POST /docs/ingest` -> `{title, source_path, category, content}` -> `{document_id, status, chunks}`
 - `GET /docs`, `DELETE /docs/{doc_id}`, `POST /docs/search` -> `{query, category, top_k}`
 - `GET /tools`（按 `AuthContext.allowed_tools` 裁剪）, `GET /runs/{run_id}/trace`
+- **智能体 BOM 工具**（admin/user 角色默认可用，readonly/external_guest 不可见）：
+  - `bom_quote`：按 `{root_keyword, h, w, d, t, margin_rate, tax_rate}` 试算 BOM 成本与报价，SSE 推 `action_cards`（`kind: "bom_quote"`，含 `direct_cost/final_price/cost_summary`）
+  - `bom_stock_check`：按 3D 参数核查物料齐套状态，缺料时 SSE 推 `action_cards`（`kind: "inventory_alert"`，`safety_stock` 语义为需求量）
 - `GET /eval/cases` -> `EvalCase[]`（读取 `eval/golden_qa.json`）
 - `POST /eval/seed` -> 初始化示例文档到 Postgres
 - `POST /eval/run` -> `{seed_if_empty, top_k}` -> `{summary: {total, passed, hit_rate_at_3, mrr, avg_latency_ms}, results}`
