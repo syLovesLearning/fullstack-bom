@@ -1,7 +1,18 @@
-"""全局配置：使用 find_dotenv 向上查找 .env，杜绝硬编码 .parent 层级。"""
+"""全局配置：优先向上查找 .env；找不到时回落到 backend/.env，保证启动目录无关。"""
+
+from pathlib import Path
 
 from dotenv import find_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# config.py 位于 backend/src/ 下，向上两级即 backend/.env
+_FALLBACK_ENV = Path(__file__).resolve().parent.parent / ".env"
+
+
+def _locate_env() -> str:
+    """先按进程 cwd 向上找（兼容 backend/ 内启动），失败则回落到文件定位，避免从仓库根目录启动时丢配置。"""
+    found = find_dotenv(usecwd=True)
+    return found if found else str(_FALLBACK_ENV)
 
 
 class Settings(BaseSettings):
@@ -24,7 +35,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     model_config = SettingsConfigDict(
-        env_file=find_dotenv(usecwd=True) or ".env",
+        env_file=_locate_env(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
