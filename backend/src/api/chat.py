@@ -140,7 +140,15 @@ async def chat_stream(
             )
 
         hooks = AgentHooks(after_tool=[record_tool_step])
-        registry = build_tool_registry(rag_service=rag_service, memory_service=memory_service, workflow_repo=workflow_repo, inventory_repo=inventory_repo, bom_service=bom_service)
+        registry = build_tool_registry(
+            rag_service=rag_service,
+            memory_service=memory_service,
+            workflow_repo=workflow_repo,
+            inventory_repo=inventory_repo,
+            bom_service=bom_service,
+            default_top_k=body.top_k,
+            default_min_score=body.min_score,
+        )
         loop = AgentLoop(llm=llm_service, registry=registry, hooks=hooks)
 
         async def run_agent() -> None:

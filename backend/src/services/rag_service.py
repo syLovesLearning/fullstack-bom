@@ -40,7 +40,8 @@ class RagService:
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         raw_chunks = chunk_markdown(content)
         texts = [f"{c.heading_path}\n{c.content}" for c in raw_chunks]
-        embeddings = await self._embed.embed_texts(texts)
+        # 入库路径 on_error=raise：embedding 失败直接中止，避免两种向量空间混入同一张表
+        embeddings = await self._embed.embed_texts(texts, on_error="raise")
 
         packed = [
             (c.chunk_index, c.heading_path, c.content, " ".join(tokenize(t)), emb)
@@ -106,7 +107,8 @@ class RagService:
             return []
 
         g_key = ",".join(sorted(groups))
-        cache_key = f"rag:cache:{uid}:{g_key}:{category or 'all'}:{hashlib.md5(query.encode()).hexdigest()}"
+        # 缓存键必须包含 min_score：不同阈值的结果集不同，否则低阈值调用会拿到已过滤的缓存
+        cache_key = f"rag:cache:{uid}:{g_key}:{category or 'all'}:{min_score}:{hashlib.md5(query.encode()).hexdigest()}"
         if self._redis is not None:
             cached = await self._redis.get(cache_key)
             if cached:

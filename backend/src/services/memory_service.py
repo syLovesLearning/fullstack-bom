@@ -61,7 +61,8 @@ class MemoryService:
         rows = await self._sessions.list_messages(session_id=session_id, user_id=user_id, limit=12)
         history = [ChatMessage(role=r["role"], content=r["content"]) for r in rows]
         if self._redis is not None and history:
-            serialized = json.dumps([m.model_dump() for m in history[-8:]], ensure_ascii=False)
+            # 缓存与 DB 路径使用同一窗口（12 条），避免命中缓存与否导致上下文长度漂移
+            serialized = json.dumps([m.model_dump() for m in history], ensure_ascii=False)
             await self._redis.set(cache_key, serialized, ex=1800)
         return history
 

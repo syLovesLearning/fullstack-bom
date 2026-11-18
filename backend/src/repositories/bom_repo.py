@@ -61,7 +61,9 @@ class BomRepo:
                 return await cur.fetchone() is not None
 
     async def get_or_create_header(self, user_id: UUID, item_id: UUID) -> UUID:
-        # INSERT ON CONFLICT 消除 SELECT-then-INSERT 竞态（并发创建撞 UNIQUE(item_id, version) 直接 500）
+        # INSERT ON CONFLICT 消除 SELECT-then-INSERT 竞态（并发创建撞 UNIQUE(item_id, version) 直接 500）。
+        # 前提：bom_items 按 (user_id, sku_code) 唯一，item_id 本身即用户级唯一，
+        # 因此冲突目标无需携带 user_id；若未来引入全局共享物料目录，需同步调整此处。
         sql = """
             INSERT INTO bom_headers (user_id, item_id, version, status)
             VALUES (%s, %s, 'V1.0', 'ACTIVE')

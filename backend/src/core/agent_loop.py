@@ -46,8 +46,10 @@ class AgentLoop:
             if not tool_calls:
                 final_answer = text
                 state.messages.append(ChatMessage(role="assistant", content=final_answer))
-                for ch in final_answer:
-                    await emit_event("token", {"text": ch})
+                # 按块发送而非逐字符：LLM 为整体返回（伪流式），逐字符会产生数千个 SSE 帧
+                CHUNK = 24
+                for i in range(0, len(final_answer), CHUNK):
+                    await emit_event("token", {"text": final_answer[i : i + CHUNK]})
                 break
 
             state.messages.append(

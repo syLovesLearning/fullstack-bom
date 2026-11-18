@@ -2,12 +2,15 @@
 
 import asyncio
 import hashlib
+import logging
 import math
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
@@ -15,7 +18,10 @@ class EmbeddingService:
         self._client = http_client
         self._dim = dim
 
-    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    async def embed_texts(
+        self, texts: list[str], on_error: Literal["degrade", "raise"] = "degrade"
+    ) -> list[list[float]]:
+        """on_error=raise 供入库路径使用：失败即中止，杜绝真实向量与本地 hash 向量混入同一向量空间。"""
         if not texts:
             return []
         if not settings.llm_api_key or settings.llm_api_key == "your_api_key":
@@ -36,6 +42,10 @@ class EmbeddingService:
             items = sorted(resp.json()["data"], key=lambda x: x["index"])
             return [item["embedding"] for item in items]
         except Exception:
+            logger.exception("Embedding API 调用失败（model=%s, %d 条文本）", settings.embed_model, len(texts))
+            if on_error == "raise":
+                raise
+            logger.warning("Embedding 降级为本地 hash 向量：查询结果质量可能下降，不会写入向量库")
             return [self._local_hash_embedding(t) for t in texts]
 
     async def rerank(self, query: str, docs: list[str], top_n: int = 3) -> list[tuple[int, float]]:
@@ -53,6 +63,7 @@ class EmbeddingService:
             )
             return [(int(r["index"]), float(r["relevance_score"])) for r in data.get("results", [])]
         except Exception:
+            logger.exception("Rerank API 调用失败，降级为词面重合度排序")
             return self._local_rerank(query, docs, top_n)
 
     async def _post_with_retry(self, url: str, payload: dict[str, Any], retries: int = 3) -> dict[str, Any]:

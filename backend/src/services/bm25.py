@@ -1,4 +1,9 @@
-"""中英混排 BM25 检索与 RRF 倒数排名融合算法。"""
+"""中英混排 BM25 检索与 RRF 倒数排名融合算法。
+
+注意：生产检索链路的 BM25 走 Postgres tsvector（见 doc_repo.fulltext_search），
+本模块的 bm25_rank 仅用于离线测试与召回效果对照，勿在生产路径调用。
+rrf_fuse 为生产在用的融合算法。
+"""
 
 import math
 import re

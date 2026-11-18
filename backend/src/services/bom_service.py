@@ -43,12 +43,17 @@ class BomService:
         return await self._repo.list_edges(user_id, parent_id)
 
     async def add_edge(self, user_id: UUID, parent_id: UUID, data: dict[str, Any]) -> dict[str, Any]:
+        # 已知竞态（TOCTOU）：环检测与写入分属两个连接窗口，并发挂载可绕过检测。
+        # demo 规模可接受；生产化时应将「拉边+检测+写 header+写边」收敛进单事务。
         await self._assert_acyclic(user_id, parent_id, [data["child_item_id"]])
         header_id = await self._repo.get_or_create_header(user_id, parent_id)
         return await self._repo.add_edge(user_id, header_id, data)
 
     async def add_edges_batch(self, user_id: UUID, parent_id: UUID, rows: list[dict[str, Any]]) -> int:
-        """拖拽多选批量挂载：一次环检测 + 单事务 executemany，避免部分插入。"""
+        """拖拽多选批量挂载：一次环检测 + 单事务 executemany，避免部分插入。
+
+        已知竞态（TOCTOU）：环检测读边与批量写入不在同一事务，并发修改可能绕过检测，见 add_edge 注释。
+        """
         await self._assert_acyclic(user_id, parent_id, [r["child_item_id"] for r in rows])
         header_id = await self._repo.get_or_create_header(user_id, parent_id)
         await self._repo.add_edges_batch(user_id, header_id, [_edge_payload(r) for r in rows])
@@ -61,7 +66,12 @@ class BomService:
         return await self._repo.soft_delete_edge(edge_id, user_id)
 
     async def move_edge(self, user_id: UUID, edge_id: UUID, new_parent_id: UUID) -> dict[str, Any]:
-        """拖拽换父级：边本身保留（公式/余料策略/附加费全部跟着走），只改挂载点。"""
+        """拖拽换父级：边本身保留（公式/余料策略/附加费全部跟着走），只改挂载点。
+
+        已知竞态（TOCTOU）：同 add_edge，环检测与 move 写入不在同一事务。
+        DFS 会把待移动边按「旧挂载点仍在」计算——因边方向是 parent→child，旧边不影响
+        child 可达性判定，语义安全；但并发新增边仍可能绕过检测。
+        """
         edge = await self._repo.get_edge(edge_id, user_id)
         if edge is None:
             raise ValueError("未找到待移动的子件关系")

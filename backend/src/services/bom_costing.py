@@ -1,13 +1,28 @@
 """BOM 成本试算服务：多级递归算价、余料阈值核算、报价快照与跨库库存齐套核查。"""
 
 import json
+import logging
 from typing import Any
 from uuid import UUID, uuid4
 
 from src.repositories.bom_repo import BomRepo
-from src.services.bom_formula import calc_remnant_qty, safe_eval_formula
+from src.services.bom_formula import calc_remnant_qty, eval_formula_with_error
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_PARAMS_3D = {"H": 2200.0, "W": 800.0, "D": 600.0, "T": 2.0}
+
+
+def _eval_checked(expr: str, env: dict[str, float], fallback: float) -> tuple[float, str | None]:
+    """带告警的公式求值：非空公式求值失败时按 fallback 计价，但必须留下错误痕迹，
+    避免报价场景「公式写错静默归零」。返回 (值, 错误说明|None)。"""
+    if not expr or not expr.strip():
+        return fallback, None
+    value, err = eval_formula_with_error(expr, env)
+    if err:
+        logger.warning("BOM 公式求值失败，按 fallback=%s 计价：%s（%s）", fallback, expr, err)
+        return fallback, f"{expr} → {err}"
+    return value, None
 
 
 class BomCostingService:
@@ -30,12 +45,15 @@ class BomCostingService:
         def _walk(item_id: UUID, mult_qty: float, b_grp: str, edge_meta: dict[str, Any] | None, visited: set[UUID]) -> dict[str, Any]:
             it = items[item_id]
             ch_edges = edges_by_parent.get(item_id, [])
+            formula_error: str | None = None
             if not ch_edges or item_id in visited:
                 pol = edge_meta.get("remnant_policy", "CONTINUOUS") if edge_meta else "CONTINUOUS"
                 pack = float(edge_meta.get("unit_pack_size", 1.0)) if edge_meta else 1.0
                 mrem = float(edge_meta.get("min_remnant", 0.0)) if edge_meta else 0.0
                 bill_qty, scrap_qty, rem_note = calc_remnant_qty(mult_qty, pack, pol, mrem)
-                extra_cost = safe_eval_formula(edge_meta.get("extra_cost_expr", "") if edge_meta else "", {**env, "qty": bill_qty, "base_qty": mult_qty}, 0.0)
+                extra_expr = edge_meta.get("extra_cost_expr", "") if edge_meta else ""
+                extra_cost, extra_err = _eval_checked(extra_expr, {**env, "qty": bill_qty, "base_qty": mult_qty}, 0.0)
+                formula_error = extra_err
                 sub = round(bill_qty * float(it["base_price"]) + extra_cost, 2)
                 if it["category"] == "LABOR":
                     k = "人工费(内)" if it["sub_type"] == "INTERNAL" else "人工费(外/机械)"
@@ -48,17 +66,27 @@ class BomCostingService:
                     flat_materials.append({"sku_code": it["sku_code"], "name": it["name"], "unit": it["unit"], "required_qty": bill_qty})
                 if b_grp in bom_summary:
                     bom_summary[b_grp] = round(bom_summary[b_grp] + sub, 2)
-                return {**it, "qty": bill_qty, "raw_qty": round(mult_qty, 3), "scrap_qty": scrap_qty, "remnant_note": rem_note, "extra_cost": round(extra_cost, 2), "subtotal": sub, "children": []}
+                node = {**it, "qty": bill_qty, "raw_qty": round(mult_qty, 3), "scrap_qty": scrap_qty, "remnant_note": rem_note, "extra_cost": round(extra_cost, 2), "subtotal": sub, "children": []}
+                if formula_error:
+                    node["formula_error"] = formula_error
+                return node
 
             children_nodes, node_total = [], 0.0
             for ed in ch_edges:
-                raw_q = safe_eval_formula(ed["formula_expr"], {**env, "base_qty": float(ed["base_qty"])}, float(ed["base_qty"])) if ed["qty_mode"] == "FORMULA_3D" else float(ed["base_qty"])
+                raw_q = float(ed["base_qty"])
+                if ed["qty_mode"] == "FORMULA_3D":
+                    raw_q, raw_err = _eval_checked(ed["formula_expr"], {**env, "base_qty": float(ed["base_qty"])}, float(ed["base_qty"]))
+                    if raw_err:
+                        formula_error = raw_err
                 eff_qty = mult_qty * raw_q * (1.0 + float(ed.get("loss_rate", 0.0))) * float(ed["float_factor"])
                 ch_node = _walk(ed["child_id"], eff_qty, ed["bom_group"], ed, visited | {item_id})
                 ch_node.update({"edge_id": ed["id"], "qty_mode": ed["qty_mode"], "formula_expr": ed["formula_expr"], "extra_cost_expr": ed.get("extra_cost_expr", ""), "remnant_policy": ed.get("remnant_policy", "CONTINUOUS"), "float_factor": ed["float_factor"]})
                 children_nodes.append(ch_node)
                 node_total += ch_node["subtotal"]
-            return {**it, "qty": round(mult_qty, 3), "subtotal": round(node_total, 2), "children": children_nodes}
+            node = {**it, "qty": round(mult_qty, 3), "subtotal": round(node_total, 2), "children": children_nodes}
+            if formula_error:
+                node["formula_error"] = formula_error
+            return node
 
         root_node = _walk(root_id, 1.0, "成品", None, set())
         return {"root": root_node, "params_3d": env, "cost_summary": cost_summary, "bom_summary": bom_summary, "flat_materials": flat_materials}
@@ -88,13 +116,16 @@ class BomCostingService:
         out = []
         for sku, m in agg.items():
             row = stock_map.get(sku)
+            matched_by = "sku"
             if row is None and self._inv_repo is not None:
+                # 兜底模糊匹配可能命中错误物料：结果中显式标注，前端可见
                 hits = await self._inv_repo.search_by_name(m["name"][:4], limit=1)
                 row = hits[0] if hits else None
+                matched_by = "fuzzy"
             stock_qty = float(row["stock_qty"]) if row else 0.0
             wh = row["warehouse"] if row else "未建档"
             status = "齐套" if row and stock_qty >= m["required_qty"] else ("缺料" if row else "未建档")
-            out.append({**m, "stock_qty": stock_qty, "warehouse": wh, "status": status})
+            out.append({**m, "stock_qty": stock_qty, "warehouse": wh, "status": status, "matched_by": matched_by})
         return out
 
     async def _fetch_stock_map(self, sku_codes: list[str]) -> dict[str, dict[str, Any]]:
