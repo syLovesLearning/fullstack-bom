@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.deps import create_access_token, get_current_auth, get_user_repo
+from src.config import settings
 from src.repositories.user_repo import UserRepo
 from src.schemas.models import AuthContext, DevLoginRequest, LoginRequest, RegisterRequest
 
@@ -31,6 +32,9 @@ async def dev_login(
     body: DevLoginRequest,
     user_repo: UserRepo = Depends(get_user_repo),
 ) -> dict[str, Any]:
+    # 安全门禁：免密换任意角色 token 仅限开发环境，生产环境直接关闭
+    if settings.env != "dev":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="dev-login 仅限开发环境使用")
     row = await user_repo.get_or_create_dev_user(
         username=body.username, role=body.role, groups=body.groups
     )
@@ -42,6 +46,9 @@ async def register(
     body: RegisterRequest,
     user_repo: UserRepo = Depends(get_user_repo),
 ) -> dict[str, Any]:
+    # 双保险：Pydantic Literal 已收敛角色白名单，这里再拦一次防御手写 JSON 直传 admin
+    if body.role == "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="不允许自助注册管理员角色")
     row = await user_repo.register_user(
         username=body.username, password=body.password, role=body.role, groups=body.groups
     )

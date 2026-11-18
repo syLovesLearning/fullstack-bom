@@ -85,14 +85,15 @@ class SessionRepo:
         cite_json = json.dumps(citations, ensure_ascii=False) if citations else None
         card_json = json.dumps(action_cards, ensure_ascii=False) if action_cards else None
         async with self._pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    sql, (session_id, user_id, run_id, role, content, tc_json, tool_call_id, cite_json, card_json)
-                )
-                row = await cur.fetchone()
-                assert row is not None
-                await cur.execute("UPDATE sessions SET updated_at = NOW() WHERE id = %s;", (session_id,))
-                return int(row["id"])
+            async with conn.transaction():
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        sql, (session_id, user_id, run_id, role, content, tc_json, tool_call_id, cite_json, card_json)
+                    )
+                    row = await cur.fetchone()
+                    assert row is not None
+                    await cur.execute("UPDATE sessions SET updated_at = NOW() WHERE id = %s;", (session_id,))
+                    return int(row["id"])
 
     async def list_messages(self, session_id: UUID, user_id: UUID, limit: int = 60) -> list[dict[str, Any]]:
         sql = """

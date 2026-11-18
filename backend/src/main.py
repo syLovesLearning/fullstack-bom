@@ -12,6 +12,7 @@ from src.infra.http_client import close_http_client, create_http_client
 from src.infra.postgres import close_pg_pool, create_pg_pool
 from src.infra.redis import close_redis_client, create_redis_client
 from src.repositories.bom_repo import BomRepo
+from src.repositories.menu_repo import MenuRepo
 
 
 @asynccontextmanager
@@ -27,6 +28,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     bom_repo = BomRepo(app.state.bom_pool)
     await bom_repo.ensure_v3_schema()
     app.state.bom_repo = bom_repo
+    # 菜单表建表 + 种子同样预热一次（repo 内带 _initialized 标志，请求路径零开销）
+    app.state.menu_repo = MenuRepo(app.state.pg_pool)
+    await app.state.menu_repo.ensure_initialized()
     app.state.redis = await create_redis_client(settings.redis_url)
     app.state.http_client = create_http_client()
     try:

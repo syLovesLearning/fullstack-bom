@@ -5,8 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    pg_dsn: str = "postgresql://shenyang@localhost:5432/rag_db"
-    bom_pg_dsn: str = "postgresql://shenyang@localhost:5432/bom_db"
+    # 运行环境标识：dev 允许 /dev-login 与默认 JWT secret；非 dev 启动时强制校验
+    env: str = "dev"
+    pg_dsn: str = ""
+    bom_pg_dsn: str = ""
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"

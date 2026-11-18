@@ -130,7 +130,12 @@ def get_bom_service(repo: BomRepo = Depends(get_bom_repo), inv_repo: InventoryRe
 
 
 def get_menu_repo(request: Request) -> MenuRepo:
-    return MenuRepo(request.app.state.pg_pool)
+    # 单例复用：lifespan 已完成建表+种子预热并缓存到 app.state.menu_repo
+    repo = getattr(request.app.state, "menu_repo", None)
+    if repo is None:
+        repo = MenuRepo(request.app.state.pg_pool)
+        request.app.state.menu_repo = repo
+    return repo
 
 
 def get_menu_service(repo: MenuRepo = Depends(get_menu_repo)) -> MenuService:

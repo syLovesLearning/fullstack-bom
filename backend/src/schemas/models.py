@@ -50,7 +50,8 @@ class DevLoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=2, max_length=64)
     password: str = Field(min_length=4, max_length=128)
-    role: Literal["admin", "user", "readonly", "external_guest"] = "user"
+    # 安全约束：注册不允许自选 admin，管理员只能由已有管理员在库内提权
+    role: Literal["user", "readonly", "external_guest"] = "user"
     groups: list[str] = Field(default_factory=lambda: ["public"])
 
 
@@ -95,8 +96,9 @@ class BomEdgeCreate(BaseModel):
     qty_mode: Literal["FIXED", "FORMULA_3D"] = "FIXED"
     base_qty: float = Field(default=1.0, gt=0.0)
     formula_expr: str = ""
-    extra_cost_expr: str = ""
-    remnant_policy: Literal["CONTINUOUS", "WHOLE_PACK", "THRESHOLD_SCRAP"] = "CONTINUOUS"
+    # 注意：附加费与余料策略仅对「成本叶子」（无子件的物料）生效；挂在半成品装配体边上的配置会被忽略
+    extra_cost_expr: str = Field(default="", description="附加成本表达式，仅对成本叶子节点生效")
+    remnant_policy: Literal["CONTINUOUS", "WHOLE_PACK", "THRESHOLD_SCRAP"] = Field(default="CONTINUOUS", description="余料策略，仅对成本叶子节点生效")
     unit_pack_size: float = Field(default=1.0, gt=0.0)
     min_remnant: float = Field(default=0.0, ge=0.0)
     loss_rate: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -109,8 +111,9 @@ class BomEdgeUpdate(BaseModel):
     qty_mode: Literal["FIXED", "FORMULA_3D"] = "FIXED"
     base_qty: float = Field(default=1.0, gt=0.0)
     formula_expr: str = ""
-    extra_cost_expr: str = ""
-    remnant_policy: Literal["CONTINUOUS", "WHOLE_PACK", "THRESHOLD_SCRAP"] = "CONTINUOUS"
+    # 注意：附加费与余料策略仅对「成本叶子」（无子件的物料）生效；挂在半成品装配体边上的配置会被忽略
+    extra_cost_expr: str = Field(default="", description="附加成本表达式，仅对成本叶子节点生效")
+    remnant_policy: Literal["CONTINUOUS", "WHOLE_PACK", "THRESHOLD_SCRAP"] = Field(default="CONTINUOUS", description="余料策略，仅对成本叶子节点生效")
     unit_pack_size: float = Field(default=1.0, gt=0.0)
     min_remnant: float = Field(default=0.0, ge=0.0)
     loss_rate: float = Field(default=0.0, ge=0.0, le=1.0)

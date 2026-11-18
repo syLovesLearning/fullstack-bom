@@ -10,7 +10,8 @@ _event_queue_var: ContextVar[asyncio.Queue[SSEEvent | None] | None] = ContextVar
     "event_queue", default=None
 )
 _auth_ctx_var: ContextVar[AuthContext | None] = ContextVar("auth_context", default=None)
-_recent_history_var: ContextVar[list[dict[str, str]]] = ContextVar("recent_history", default=[])
+# default=None 而非 []：避免可变对象作为 ContextVar 默认值被跨上下文共享
+_recent_history_var: ContextVar[list[dict[str, str]] | None] = ContextVar("recent_history", default=None)
 
 
 def set_event_queue(queue: asyncio.Queue[SSEEvent | None]) -> None:
@@ -43,4 +44,4 @@ def set_recent_history(history: list[dict[str, str]]) -> None:
 
 
 def get_recent_history() -> list[dict[str, str]]:
-    return _recent_history_var.get()
+    return _recent_history_var.get() or []

@@ -89,7 +89,7 @@ class UserRepo:
             async with conn.cursor() as cur:
                 await cur.execute(sql, (username,))
                 row = await cur.fetchone()
-                if not row or not _verify_password(password, row["password_hash"]):
+                if not row or not row["is_active"] or not _verify_password(password, row["password_hash"]):
                     return None
                 return dict(row)
 

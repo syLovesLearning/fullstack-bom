@@ -7,6 +7,11 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
+# 脚本常从仓库根目录运行：显式加载 backend/.env，避免 find_dotenv(usecwd=True) 找不到配置
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(ROOT / "backend" / ".env")
+
 from src.config import settings  # noqa: E402
 from src.infra.http_client import close_http_client, create_http_client  # noqa: E402
 from src.infra.postgres import close_pg_pool, create_pg_pool  # noqa: E402
@@ -26,6 +31,8 @@ TARGET_DOCS = [
 
 
 async def sync_all(username: str = "shenyang") -> None:
+    if not settings.pg_dsn:
+        raise SystemExit("未找到 PG_DSN 配置：请确认 backend/.env 存在，或通过环境变量导出 PG_DSN 后重试")
     pool = await create_pg_pool(settings.pg_dsn)
     http_client = create_http_client()
     try:

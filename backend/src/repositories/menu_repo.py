@@ -20,8 +20,12 @@ DEFAULT_MENUS: list[tuple[str, str, str, str, int, list[str], bool]] = [
 class MenuRepo:
     def __init__(self, pool: AsyncConnectionPool) -> None:
         self._pool = pool
+        self._initialized = False
 
     async def ensure_initialized(self) -> None:
+        """建表 + 种子兜底。lifespan 启动时预热一次，后续请求直接跳过（避免每次请求跑 DDL+COUNT）。"""
+        if self._initialized:
+            return
         ddl = """
             CREATE TABLE IF NOT EXISTS sys_menus (
                 menu_key        TEXT PRIMARY KEY,
@@ -49,6 +53,7 @@ class MenuRepo:
                             """,
                             item,
                         )
+        self._initialized = True
 
     async def list_for_role(self, role: str) -> list[dict[str, Any]]:
         await self.ensure_initialized()
