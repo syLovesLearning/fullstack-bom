@@ -68,7 +68,20 @@ class LLMService:
             headers={"Authorization": f"Bearer {settings.llm_api_key}"},
             json=payload,
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = resp.text[:240]
+            try:
+                err_obj = resp.json()
+                detail = str((err_obj.get("error") or {}).get("message") or err_obj.get("message") or detail)
+            except Exception:
+                pass
+            if resp.status_code == 401:
+                raise RuntimeError(f"模型 API Key 无效或已过期 (HTTP 401)：{detail}")
+            if resp.status_code == 402:
+                raise RuntimeError(f"模型账户余额或 Token 额度已耗尽 (HTTP 402)：{detail}")
+            if resp.status_code == 429:
+                raise RuntimeError(f"模型 Token 额度不足或触发限流 (HTTP 429)：{detail}")
+            raise RuntimeError(f"大模型服务异常 (HTTP {resp.status_code})：{detail}")
         data = resp.json()
         choice = data["choices"][0]["message"]
         usage = data.get("usage", {}).get("total_tokens", 0)

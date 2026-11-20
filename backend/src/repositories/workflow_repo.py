@@ -152,3 +152,33 @@ class WorkflowRepo:
                 await cur.execute(sql, (status, operator, channel, instance_id, owner_user_id))
                 row = await cur.fetchone()
                 return dict(row) if row else None
+
+    async def ensure_tool_demand_definition(self) -> None:
+        fields = [
+            {"key": "title", "label": "需求工具名称", "type": "text", "required": True},
+            {"key": "problem_desc", "label": "业务痛点与目标", "type": "text", "required": True},
+            {"key": "input_fields", "label": "建议输入参数清单", "type": "text", "required": True},
+            {"key": "delivery_mode", "label": "实现方式", "type": "select", "required": True, "options": ["EXTERNAL_SERVICE", "LOCAL_MODULE"]},
+            {"key": "target_roles", "label": "开放角色", "type": "text", "required": True},
+        ]
+        sql = """
+            INSERT INTO workflow_definitions (flow_code, name, description, allowed_roles, fields)
+            VALUES (%s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (flow_code) DO NOTHING;
+        """
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(sql, ("tool_demand", "微工具需求立项", "对话或页面提出的项目新工具需求，审批后可挂载外部微服务或本地更新", ["admin", "user", "external_guest"], json.dumps(fields, ensure_ascii=False)))
+
+    async def update_form_data(self, instance_id: UUID, patch: dict[str, Any]) -> dict[str, Any] | None:
+        sql = """
+            UPDATE workflow_instances
+            SET form_data = form_data || %s::jsonb
+            WHERE id = %s
+            RETURNING id, flow_code, title, form_data, status;
+        """
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(sql, (json.dumps(patch, ensure_ascii=False), instance_id))
+                row = await cur.fetchone()
+                return dict(row) if row else None

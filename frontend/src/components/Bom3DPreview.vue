@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import type { BomRollupResponse } from '../api/bomTypes'
 import { buildIndustrialCabinet } from '../utils/cabinetMesh'
 import { printBomQuoteWith3D } from '../utils/bomPrintQuote'
@@ -11,12 +12,14 @@ const props = defineProps<{ params: { h: number; w: number; d: number; t: number
 const emit = defineEmits<{ editSku: [sku: string] }>()
 const boxEl = ref<HTMLElement | null>(null)
 const exploded = ref(false)
+const showEnv = ref(true)
 const box3Alert = ref('')
 const pickedInfo = ref<{ sku: string; name: string; qty: number; subtotal: number } | null>(null)
 const widthAlert = computed(() => '')
-const busbarDistMm = computed(() => Math.round(Math.hypot(props.params.w * 0.9, -props.params.h * 0.6, props.params.d * 0.8)))
 
-let scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, ctrl: OrbitControls, group: THREE.Group, ro: ResizeObserver | null = null, rafId = 0
+let scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, ctrl: OrbitControls
+let group: THREE.Group, envGroup: THREE.Group, pmrem: THREE.PMREMGenerator | null = null, envRT: THREE.WebGLRenderTarget | null = null, bakedTexs: THREE.Texture[] = []
+let ro: ResizeObserver | null = null, rafId = 0
 const raycaster = new THREE.Raycaster()
 
 function disposeGroup() {
@@ -30,16 +33,16 @@ function rebuildScene() {
   disposeGroup()
   box3Alert.value = buildIndustrialCabinet(group, {
     ...props.params, exploded: exploded.value, highlightSku: pickedInfo.value?.sku || props.highlightSku || '',
-    collision: !!widthAlert.value, root: props.rollup?.root,
+    collision: !!widthAlert.value, root: props.rollup?.root, showProps: showEnv.value,
   })
 }
 
 function setView(preset: 'iso' | 'front' | 'top') {
   if (!camera || !ctrl) return
-  if (preset === 'iso') camera.position.set(2.3, 2.0, 3.2)
+  if (preset === 'iso') camera.position.set(-2.2, 1.9, 3.1)
   else if (preset === 'front') camera.position.set(0, 1.1, 3.5)
   else camera.position.set(0, 4.1, 0.01)
-  ctrl.target.set(0, 1.0, 0); ctrl.update()
+  ctrl.target.set(0, 0.9, 0); ctrl.update()
 }
 
 function onCanvasClick(ev: MouseEvent) {
@@ -56,26 +59,73 @@ function handlePrint() {
   printBomQuoteWith3D(props.rollup ?? null, props.marginPct, props.taxPct, img)
 }
 
-watch(() => [props.params.h, props.params.w, props.params.d, props.params.t, props.rollup, props.highlightSku, exploded.value, pickedInfo.value?.sku], rebuildScene)
+watch(() => [props.params.h, props.params.w, props.params.d, props.params.t, props.rollup, props.highlightSku, exploded.value, pickedInfo.value?.sku, showEnv.value], () => {
+  if (envGroup) envGroup.visible = showEnv.value
+  if (scene) scene.background = new THREE.Color(showEnv.value ? 0x1e293b : 0xf1f5f9)
+  rebuildScene()
+})
 
 onMounted(() => {
   const el = boxEl.value!
-  scene = new THREE.Scene(); scene.background = new THREE.Color(0x0f172a)
-  camera = new THREE.PerspectiveCamera(45, (el.clientWidth || 640) / 420, 0.1, 100)
+  scene = new THREE.Scene()
+  scene.background = new THREE.Color(0x1e293b)
+  camera = new THREE.PerspectiveCamera(42, (el.clientWidth || 640) / 420, 0.1, 100)
   renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.0
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.setSize(el.clientWidth || 640, 420); el.appendChild(renderer.domElement)
-  ctrl = new OrbitControls(camera, renderer.domElement); setView('iso')
-  scene.add(new THREE.AmbientLight(0xffffff, 0.9))
-  const dl1 = new THREE.DirectionalLight(0xffffff, 1.5); dl1.position.set(4, 6, 5); scene.add(dl1)
-  scene.add(new THREE.GridHelper(4, 16, 0x334155, 0x1e293b))
+
+  pmrem = new THREE.PMREMGenerator(renderer)
+  envRT = pmrem.fromScene(new RoomEnvironment(), 0.04)
+  scene.environment = envRT.texture
+  scene.environmentIntensity = 0.35
+
+  ctrl = new OrbitControls(camera, renderer.domElement); ctrl.enableDamping = true; setView('iso')
+  scene.add(new THREE.HemisphereLight(0xe2e8f0, 0x334155, 0.32))
+  const key = new THREE.DirectionalLight(0xfffbeb, 2.2)
+  key.position.set(-2.6, 4.4, 3.0); key.castShadow = true
+  key.shadow.mapSize.set(512, 512); key.shadow.bias = -0.0005; key.shadow.normalBias = 0.02
+  Object.assign(key.shadow.camera, { left: -2.4, right: 2.4, top: 3.0, bottom: -1.0, near: 0.5, far: 12 })
+  scene.add(key)
+
+  const loader = new THREE.TextureLoader()
+  const tileTex = (url: string, rx: number, ry: number, srgb = false) => {
+    const tex = loader.load(url); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(rx, ry)
+    if (srgb) tex.colorSpace = THREE.SRGBColorSpace
+    bakedTexs.push(tex); return tex
+  }
+  const addUv2 = (geo: THREE.PlaneGeometry) => { geo.setAttribute('uv2', geo.attributes.uv); return geo }
+
+  const floor = new THREE.Mesh(addUv2(new THREE.PlaneGeometry(10, 10)), new THREE.MeshStandardMaterial({
+    map: tileTex('/textures/agg_floor.jpg', 6, 6, true),
+    normalMap: tileTex('/textures/agg_normal.jpg', 6, 6), normalScale: new THREE.Vector2(0.85, 0.85),
+    roughnessMap: tileTex('/textures/agg_rough.jpg', 6, 6),
+    aoMap: tileTex('/textures/agg_ao.jpg', 6, 6), aoMapIntensity: 0.75, roughness: 1.0, metalness: 0.04,
+  }))
+  envGroup = new THREE.Group(); scene.add(envGroup)
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; envGroup.add(floor)
+
+  const bNorm = tileTex('/textures/brick_normal.jpg', 1, 1), bAo = tileTex('/textures/brick_ao.jpg', 1, 1)
+  const makeWall = (url: string) => new THREE.MeshStandardMaterial({
+    map: tileTex(url, 1, 1, true), normalMap: bNorm, normalScale: new THREE.Vector2(0.9, 0.9),
+    aoMap: bAo, aoMapIntensity: 0.85, roughness: 0.9, metalness: 0.02, side: THREE.DoubleSide,
+  })
+  const backWall = new THREE.Mesh(addUv2(new THREE.PlaneGeometry(10, 6)), makeWall('/textures/brick_back.jpg'))
+  backWall.position.set(0, 3, -1.35); backWall.receiveShadow = true; envGroup.add(backWall)
+  const rightWall = new THREE.Mesh(addUv2(new THREE.PlaneGeometry(10, 6)), makeWall('/textures/brick_right.jpg'))
+  rightWall.rotation.y = -Math.PI / 2; rightWall.position.set(1.65, 3, 0); rightWall.receiveShadow = true; envGroup.add(rightWall)
+
   group = new THREE.Group(); scene.add(group); rebuildScene()
   ro = new ResizeObserver(() => { if (el.clientWidth) { camera.aspect = el.clientWidth / 420; camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth, 420) } })
   ro.observe(el)
-  const tick = () => { rafId = requestAnimationFrame(tick); renderer.render(scene, camera) }
+  const tick = () => { rafId = requestAnimationFrame(tick); ctrl.update(); renderer.render(scene, camera) }
   tick()
 })
 
-onBeforeUnmount(() => { cancelAnimationFrame(rafId); ro?.disconnect(); disposeGroup(); renderer?.dispose() })
+onBeforeUnmount(() => { cancelAnimationFrame(rafId); ro?.disconnect(); disposeGroup(); bakedTexs.forEach((tx) => tx.dispose()); envRT?.dispose(); pmrem?.dispose(); renderer?.dispose() })
 </script>
 
 <template>
@@ -92,6 +142,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(rafId); ro?.disconnect(); disposeGr
           <button class="btn" @click="setView('iso')">等轴测</button>
           <button class="btn" @click="setView('front')">正视</button>
           <button class="btn" @click="setView('top')">俯视</button>
+          <button class="btn" @click="showEnv = !showEnv">{{ showEnv ? '隐藏环境' : '显示环境' }}</button>
           <button class="btn" @click="exploded = !exploded">{{ exploded ? '合拢' : '爆炸图' }}</button>
           <button class="btn btn-primary" @click="handlePrint">打印带图报价单</button>
         </div>

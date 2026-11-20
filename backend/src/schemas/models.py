@@ -170,6 +170,7 @@ class SysMenuUpdate(BaseModel):
     sort_order: int = Field(default=10, ge=1, le=999)
     allowed_roles: list[str] = Field(default_factory=lambda: ["admin", "user"])
     is_enabled: bool = True
+    external_url: str = ""
 
 class BomReplaceRequest(BaseModel):
     old_item_id: UUID

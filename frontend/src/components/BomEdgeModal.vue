@@ -81,7 +81,7 @@ function applyStudio(payload: { target: 'qty' | 'extra'; expr: string }) {
             <option v-for="c in items" :key="c.id" :value="c.id">{{ c.sku_code }} · {{ c.name }}</option>
           </select>
         </label>
-        <label>计价模式
+        <label>计价模式 <button type="button" class="chip chip-ai" style="margin-left:6px" @click="openStudio('formula')">✨ AI 一键写公式</button>
           <select v-model="form.qty_mode" class="inp">
             <option value="FIXED">固定数量 (FIXED)</option>
             <option value="FORMULA_3D">3D/条件公式 (FORMULA_3D)</option>

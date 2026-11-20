@@ -64,7 +64,7 @@ def validate_dynamic_workflow(definition: dict[str, Any], raw_data: dict[str, An
 def build_workflow_skill_prompt(definitions: list[dict[str, Any]]) -> str:
     if not definitions:
         return "【企业流程权限】当前角色无权发起任何业务流程。"
-    lines = ["【可用企业流程 Skill（仅列出当前用户有权限的流程）】发起时必须收集齐必填字段再调用 `submit_workflow_form`，缺少字段请先追问："]
+    lines = ["【可用企业流程 Skill（仅列出当前用户有权限的流程）】发起时必须结合前序对话已提供的字段进行合并记忆，切勿重复追问用户已经填过的字段；仅追问仍缺失的必填字段，集齐后再调用 `submit_workflow_form`："]
     for d in definitions:
         field_desc = ", ".join(
             f"{f['key']}({f.get('type','text')}{'*' if f.get('required', True) else ''})"

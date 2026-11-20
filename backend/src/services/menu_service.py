@@ -16,3 +16,16 @@ class MenuService:
 
     async def update_menu(self, menu_key: str, data: dict[str, Any]) -> dict[str, Any] | None:
         return await self._repo.update_menu(menu_key, data)
+
+    async def create_menu(self, menu_key: str, data: dict[str, Any]) -> dict[str, Any]:
+        return await self._repo.upsert_menu(
+            menu_key=menu_key,
+            title=data["title"],
+            group_name=data["group_name"],
+            allowed_roles=data.get("allowed_roles", ["admin", "user"]),
+            external_url=data.get("external_url", ""),
+            icon=data.get("icon", "🌐"),
+        )
+
+    async def delete_menu(self, menu_key: str) -> bool:
+        return await self._repo.delete_menu(menu_key)

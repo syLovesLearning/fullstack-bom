@@ -65,9 +65,10 @@ function applyFormula() {
           <div class="chips">
             <button v-for="eg in EXAMPLES" :key="eg" class="chip" @click="intent = eg">{{ eg.slice(0, 22) }}…</button>
           </div>
-          <button class="btn btn-primary" :disabled="!canDraft" @click="runDraft(token)">
-            {{ busy ? '生成中…' : '✨ 让 AI 生成公式' }}
-          </button>
+          <div class="row-btns">
+            <button class="btn btn-primary" :disabled="!canDraft" @click="runDraft(token)">{{ busy ? '生成中…' : '✨ 让 AI 生成公式' }}</button>
+            <button v-if="draft?.ok && expr.trim()" class="btn" @click="emit('apply', { target: props.target, expr: expr.trim() })">✓ 直接采纳此公式</button>
+          </div>
 
           <div v-if="draft" class="draft-card">
             <label class="lbl">公式（可直接改）

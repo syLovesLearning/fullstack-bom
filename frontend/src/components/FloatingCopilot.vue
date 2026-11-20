@@ -11,12 +11,27 @@ const emit = defineEmits<{ openFullChat: []; goWorkflow: []; goBom: [] }>()
 
 const isOpen = ref(false)
 const input = ref('')
+const isComposing = ref(false)
 const actionErr = ref('')
 const bodyEl = ref<HTMLElement | null>(null)
 
 const { streaming, answer, traces, errorMsg, actionCards, sendMessage, stopStream } = useAgentStream()
 const { activeSessionId, messages, ensureSession } = useChatSession()
 const { memories, refreshMemories } = useMemories()
+
+function scrollBottom() {
+  nextTick(() => { if (bodyEl.value) bodyEl.value.scrollTop = bodyEl.value.scrollHeight })
+}
+
+watch([() => messages.value.length, () => traces.value.length, answer, streaming, isOpen], () => {
+  if (isOpen.value) scrollBottom()
+})
+
+function onEnter(e: KeyboardEvent) {
+  if (e.isComposing || isComposing.value || e.keyCode === 229) return
+  e.preventDefault()
+  sendQuick()
+}
 
 async function sendQuick(promptText?: string) {
   const q = (promptText ?? input.value).trim()
@@ -114,7 +129,7 @@ onMounted(() => { ensureSession(props.token); refreshMemories(props.token) })
       </div>
 
       <footer class="win-foot">
-        <input v-model="input" class="chat-inp" placeholder="随时提问、试算BOM、查库存或发起审批..." @keyup.enter="sendQuick()" />
+        <input v-model="input" class="chat-inp" placeholder="随时提问、试算BOM、查库存或发起审批..." @compositionstart="isComposing = true" @compositionend="isComposing = false" @keydown.enter="onEnter" />
         <button v-if="streaming" class="btn" @click="stopStream">停止</button>
         <button v-else class="btn btn-primary" @click="sendQuick()">发送</button>
       </footer>

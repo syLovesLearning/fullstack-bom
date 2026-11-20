@@ -25,6 +25,7 @@ const emit = defineEmits<{ goWorkflow: [] }>()
 
 const { sessions, activeSessionId, messages, ensureSession: ensureSharedSession, selectSession: selectSharedSession } = useChatSession()
 const input = ref('')
+const isComposing = ref(false)
 const streamEl = ref<HTMLElement | null>(null)
 
 const showDebugBar = ref(true)
@@ -109,6 +110,12 @@ async function handleCardApprove(card: ActionCardItem) {
   }
 }
 
+function onEnter(e: KeyboardEvent) {
+  if (e.isComposing || isComposing.value || e.keyCode === 229) return
+  e.preventDefault()
+  submit()
+}
+
 async function submit() {
   const q = input.value.trim()
   if (!q || streaming.value || !activeSessionId.value) return
@@ -142,7 +149,7 @@ async function initWorkspace() {
   await Promise.all([loadSessions(), refreshMemories(props.token)])
 }
 
-watch([() => messages.value.length, answer, streaming], scrollBottom)
+watch([() => messages.value.length, () => traces.value.length, answer, streaming], scrollBottom)
 watch(() => props.token, initWorkspace)
 onMounted(initWorkspace)
 </script>
@@ -285,7 +292,9 @@ onMounted(initWorkspace)
           v-model="input"
           class="prompt-input"
           placeholder="试试：查一下服务器库存 / 查一下最近的流程 / 发起 SRM 招标..."
-          @keyup.enter="submit"
+          @compositionstart="isComposing = true"
+          @compositionend="isComposing = false"
+          @keydown.enter="onEnter"
         />
         <button v-if="streaming" class="btn stop-btn" @click="stopStream">停止生成</button>
         <button v-else class="btn btn-primary" @click="submit">发送</button>

@@ -2,11 +2,12 @@
 import { onMounted, ref } from 'vue'
 import { useBom } from '../composables/useBom'
 import BomItemPanel from './BomItemPanel.vue'
+import BomSimpleQuote from './BomSimpleQuote.vue'
 import BomTreeEditor from './BomTreeEditor.vue'
 
 const props = defineProps<{ token: string }>()
 const { loading, refreshItems, seedDemo } = useBom()
-const subTab = ref<'items' | 'tree'>('tree')
+const subTab = ref<'simple' | 'tree' | 'items'>('simple')
 
 async function handleSeed() {
   await seedDemo(props.token)
@@ -24,13 +25,15 @@ onMounted(() => refreshItems(props.token))
         <p class="sub">左树右表多级递归 · 行内编辑 · 被引用防误删 · 3D 参数沙盒公式试算</p>
       </div>
       <div class="head-btns">
-        <button class="btn" :class="{ 'btn-primary': subTab === 'tree' }" @click="subTab = 'tree'">1. BOM 树与 3D 试算</button>
+        <button class="btn" :class="{ 'btn-primary': subTab === 'simple' }" @click="subTab = 'simple'">极简报价模式</button>
+        <button class="btn" :class="{ 'btn-primary': subTab === 'tree' }" @click="subTab = 'tree'">专家模式 (BOM 树)</button>
         <button class="btn" :class="{ 'btn-primary': subTab === 'items' }" @click="subTab = 'items'">2. 物料与资源主表</button>
         <button class="btn" :disabled="loading" @click="handleSeed">一键写入示例机柜 BOM</button>
       </div>
     </header>
 
-    <BomTreeEditor v-if="subTab === 'tree'" :token="token" />
+    <BomSimpleQuote v-if="subTab === 'simple'" :token="token" @open-expert="subTab = 'tree'" />
+    <BomTreeEditor v-else-if="subTab === 'tree'" :token="token" />
     <BomItemPanel v-else :token="token" />
   </section>
 </template>

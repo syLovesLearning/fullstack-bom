@@ -97,11 +97,14 @@ class SessionRepo:
 
     async def list_messages(self, session_id: UUID, user_id: UUID, limit: int = 60) -> list[dict[str, Any]]:
         sql = """
-            SELECT id, run_id, role, content, citations, action_cards, tool_calls, tool_call_id, created_at
-            FROM messages
-            WHERE session_id = %s AND user_id = %s
-            ORDER BY id ASC
-            LIMIT %s;
+            SELECT * FROM (
+                SELECT id, run_id, role, content, citations, action_cards, tool_calls, tool_call_id, created_at
+                FROM messages
+                WHERE session_id = %s AND user_id = %s
+                ORDER BY id DESC
+                LIMIT %s
+            ) recent
+            ORDER BY id ASC;
         """
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:

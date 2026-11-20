@@ -6,7 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from src.api.deps import get_current_auth, get_workflow_repo
+from src.api.deps import get_current_auth, get_menu_repo, get_workflow_repo
+from src.repositories.menu_repo import MenuRepo
 from src.repositories.workflow_repo import WorkflowRepo
 from src.schemas.models import AuthContext
 from src.services.workflow_skills import validate_dynamic_workflow
@@ -135,3 +136,48 @@ async def update_workflow_status(
             detail="流程不存在或已完成审批，请勿重复操作",
         )
     return row
+
+
+class WorkflowDeliverRequest(BaseModel):
+    dev_reply: str = Field(min_length=1, max_length=1000)
+    delivery_mode: Literal["EXTERNAL_SERVICE", "LOCAL_MODULE"] = "EXTERNAL_SERVICE"
+    menu_key: str = Field(min_length=2, max_length=40, pattern=r"^[a-z0-9_]+$")
+    menu_title: str = Field(min_length=1, max_length=64)
+    external_url: str = Field(default="", max_length=512)
+    target_roles: list[str] = Field(default_factory=lambda: ["admin", "user"])
+    activate_menu: bool = True
+
+
+@router.post("/{instance_id}/deliver")
+async def deliver_tool_demand(
+    instance_id: UUID,
+    body: WorkflowDeliverRequest,
+    auth: AuthContext = Depends(get_current_auth),
+    repo: WorkflowRepo = Depends(get_workflow_repo),
+    menu_repo: MenuRepo = Depends(get_menu_repo),
+) -> dict[str, Any]:
+    if auth.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可执行开发交付与挂载")
+    inst = await repo.get_instance(instance_id)
+    if inst is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="流程实例不存在")
+    if inst["status"] != "approved":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请先审批通过后再进行交付挂载")
+    patch = {
+        "dev_reply": body.dev_reply.strip(),
+        "delivery_mode": body.delivery_mode,
+        "menu_key": body.menu_key.strip(),
+        "external_url": body.external_url.strip(),
+        "delivery_status": "ONLINE" if body.activate_menu else "REPLIED",
+    }
+    updated = await repo.update_form_data(instance_id, patch)
+    menu = None
+    if body.activate_menu:
+        menu = await menu_repo.upsert_menu(
+            menu_key=body.menu_key.strip(),
+            title=body.menu_title.strip(),
+            group_name="业务中心",
+            allowed_roles=body.target_roles,
+            external_url=body.external_url.strip() if body.delivery_mode == "EXTERNAL_SERVICE" else "",
+        )
+    return {"workflow": updated, "menu": menu}

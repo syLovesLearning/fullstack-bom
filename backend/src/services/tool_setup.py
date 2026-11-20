@@ -10,6 +10,7 @@ from src.repositories.inventory_repo import InventoryRepo
 from src.repositories.workflow_repo import WorkflowRepo
 from src.services.bom_service import BomService
 from src.services.bom_tools import register_bom_tools
+from src.services.demand_tools import register_demand_tools
 from src.services.memory_service import MemoryService
 from src.services.rag_service import RagService
 from src.services.workflow_skills import validate_dynamic_workflow
@@ -162,5 +163,6 @@ def build_tool_registry(
 
     if bom_service is not None:
         register_bom_tools(registry, bom_service)
+    register_demand_tools(registry)
 
     return registry

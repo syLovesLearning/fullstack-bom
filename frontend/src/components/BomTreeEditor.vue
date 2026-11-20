@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useBom } from '../composables/useBom'
 import type { QuoteSnapshotItem } from '../api/bomClient'
 import { exportBomCsv } from '../utils/bomCsv'
+import { downloadBomXlsx } from '../api/roles'
 import Bom3DPreview from './Bom3DPreview.vue'
 import BomAssembler from './BomAssembler.vue'
 import BomHealthBar from './BomHealthBar.vue'
@@ -92,6 +93,7 @@ onMounted(async () => {
       <label>税% <input v-model.number="taxPct" type="number" min="0" max="30" class="num-inp" style="width: 52px" /></label>
       <button class="btn btn-primary" @click="handleSaveQuote">冻结报价快照</button>
       <button class="btn" @click="exportBomCsv(rollup?.root ?? null)">导出 CSV</button>
+      <button class="btn" @click="downloadBomXlsx(token, rootId, sandbox3d, marginPct / 100, taxPct / 100)">导出 Excel</button>
       <div v-if="rollup" class="cost-pills">
         <span class="badge badge-ok">成本 ¥{{ rollup.root.subtotal }}</span>
         <span v-for="(v, k) in rollup.cost_summary" :key="k" class="badge badge-blue">{{ k }} ¥{{ v }}</span>

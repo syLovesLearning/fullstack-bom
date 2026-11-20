@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>羽毛球发力动力学链分析 · 外部 Nginx 微服务</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+    .wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .hero { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid #334155; border-radius: 14px; padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .hero h1 { margin: 0 0 4px; font-size: 20px; color: #38bdf8; }
+    .hero p { margin: 0; font-size: 13px; color: #94a3b8; }
+    .tag { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #0369a1; color: #e0f2fe; font-weight: 600; }
+    .grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .card h2 { margin: 0; font-size: 15px; color: #f8fafc; }
+    .stage { border-left: 3px solid #38bdf8; padding: 8px 12px; background: #0f172a; border-radius: 0 8px 8px 0; }
+    .stage strong { display: block; font-size: 13px; color: #7dd3fc; }
+    .stage span { font-size: 12px; color: #cbd5e1; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #94a3b8; }
+    input[type="range"] { width: 100%; accent-color: #38bdf8; }
+    .score-box { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 14px; text-align: center; }
+    .score-num { font-size: 34px; font-weight: 800; color: #34d399; }
+    .tip { font-size: 13px; color: #cbd5e1; margin-top: 6px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div>
+        <h1>🏸 羽毛球鞭打发力 · 动力学链分析微应用</h1>
+        <p>独立运行于外部 Nginx 容器，通过动态菜单 external_url 无缝嵌入企业智能体平台。</p>
+      </div>
+      <span class="tag">外部微服务 · Port 8090</span>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2>四段式发力传导链（Kinetic Chain）</h2>
+        <div class="stage"><strong>1. 蹬地转髋（能量起点 · 40%）</strong><span>右脚蹬地驱动骨盆向左侧旋转，先锁住髋部弹性势能。</span></div>
+        <div class="stage"><strong>2. 转肩架拍（胸腰拉伸 · 25%）</strong><span>髋带肩形成“反弓”张力，非持拍手自然下压平衡。</span></div>
+        <div class="stage"><strong>3. 抬肘内旋（鞭打加速 · 20%）</strong><span>大臂外旋后快速内旋，肘关节领先手腕到达击球点上方。</span></div>
+        <div class="stage"><strong>4. 指腕闪动（末端释放 · 15%）</strong><span>击球瞬间屈指发力 + 小臂内旋，完成最高初速度传递。</span></div>
+      </section>
+
+      <section class="card">
+        <h2>实时发力参数模拟与评估</h2>
+        <label><span>蹬地转髋同步度：<b id="vHip">82</b>%</span><input id="hip" type="range" min="30" max="100" value="82" /></label>
+        <label><span>小臂内旋鞭打速度：<b id="vPron">78</b>%</span><input id="pron" type="range" min="30" max="100" value="78" /></label>
+        <label><span>击球点高度（相对伸直臂）：<b id="vPoint">88</b>%</span><input id="point" type="range" min="40" max="100" value="88" /></label>
+        <div class="score-box">
+          <div>综合发力传导效率</div>
+          <div class="score-num" id="score">82.6</div>
+          <div class="tip" id="tip">传导顺畅：建议击球前保持手腕微松，最后 0.1s 屈指抓紧拍柄。</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const els = ['hip', 'pron', 'point'].map(id => document.getElementById(id));
+    function calc() {
+      const h = +els[0].value, p = +els[1].value, pt = +els[2].value;
+      document.getElementById('vHip').textContent = h;
+      document.getElementById('vPron').textContent = p;
+      document.getElementById('vPoint').textContent = pt;
+      const total = (h * 0.4 + p * 0.35 + pt * 0.25).toFixed(1);
+      document.getElementById('score').textContent = total;
+      const tip = document.getElementById('tip');
+      if (h < 60) tip.textContent = '⚠️ 明显脱节：下肢蹬转不足，纯靠大臂抡拍易伤肩。';
+      else if (p < 65) tip.textContent = '💡 提示：引拍后注意小臂内旋鞭打，不要死腕推球。';
+      else if (pt < 70) tip.textContent = '💡 提示：击球点偏低，建议提前抢高点迎前击球。';
+      else tip.textContent = '✅ 传导顺畅：蹬髋-转肩-内旋鞭打链路完整，爆发力利用率高。';
+    }
+    els.forEach(el => el.addEventListener('input', calc));
+    calc();
+  </script>
+</body>
+</html>

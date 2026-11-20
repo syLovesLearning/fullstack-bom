@@ -411,6 +411,7 @@ export interface SysMenuItem {
   sort_order: number
   allowed_roles: string[]
   is_enabled: boolean
+  external_url?: string
 }
 
 export function fetchVisibleMenus(token: string) {

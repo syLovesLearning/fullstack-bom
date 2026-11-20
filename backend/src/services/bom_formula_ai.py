@@ -133,7 +133,7 @@ async def draft_formula(
     try:
         raw, _, tokens = await llm.chat_step(messages, tools=[])
     except Exception as exc:  # 网络/鉴权异常统一降级为可读提示
-        return _fail(f"模型调用失败：{type(exc).__name__}")
+        return _fail(f"模型调用失败：{exc}")
     data = _extract_json(raw)
     if not data:
         return _fail("模型未返回可解析的 JSON，请换一种说法重述规则。")

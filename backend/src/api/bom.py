@@ -4,6 +4,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
+from src.services.bom_export import build_bom_quote_xlsx
 
 from src.api.deps import get_bom_service, get_current_auth
 from src.schemas.models import AuthContext, BomCloneRequest, BomEdgeBatchCreate, BomEdgeCreate, BomEdgeMove, BomEdgeUpdate, BomBatchPriceRequest, BomItemCreate, BomReplaceRequest, QuoteSaveRequest, StockCheckRequest
@@ -133,3 +135,24 @@ async def replace_bom_item(body: BomReplaceRequest, auth: AuthContext = Depends(
 @router.post("/items/batch-price")
 async def batch_price_bom_items(body: BomBatchPriceRequest, auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service)) -> dict[str, int]:
     return {"updated_count": await svc.batch_adjust_price(user_id=auth.user_id, category=body.category, pct_delta=body.pct_delta)}
+
+
+@router.get("/export-xlsx/{root_id}")
+async def export_bom_quote_xlsx(
+    root_id: UUID,
+    h: float = Query(2200.0), w: float = Query(800.0), d: float = Query(600.0), t: float = Query(2.0),
+    margin_rate: float = Query(0.15, ge=0.0, le=0.8), tax_rate: float = Query(0.13, ge=0.0, le=0.3),
+    auth: AuthContext = Depends(get_current_auth), svc: BomService = Depends(get_bom_service),
+) -> Response:
+    params_3d = {"H": h, "W": w, "D": d, "T": t}
+    try:
+        rollup = await svc.build_rollup_tree(user_id=auth.user_id, root_id=root_id, params_3d=params_3d)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    content = build_bom_quote_xlsx(rollup, params_3d, margin_rate=margin_rate, tax_rate=tax_rate)
+    sku = rollup["root"].get("sku_code", "quote")
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=bom_quote_{sku}.xlsx"},
+    )

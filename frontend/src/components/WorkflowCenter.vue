@@ -9,9 +9,10 @@ import {
   type WorkflowDefinition,
   type WorkflowItem,
 } from '../api/client'
+import WorkflowDeliverModal from './WorkflowDeliverModal.vue'
 
 const props = defineProps<{ token: string; role: string; currentUserId?: string }>()
-const emit = defineEmits<{ goChat: [] }>()
+const emit = defineEmits<{ goChat: []; menusUpdated: [] }>()
 
 const definitions = ref<WorkflowDefinition[]>([])
 const activeFlow = ref('')
@@ -46,6 +47,7 @@ const pageSize = ref(6)
 const filterFlow = ref('')
 const loading = ref(false)
 const detailItem = ref<WorkflowItem | null>(null)
+const deliverItem = ref<WorkflowItem | null>(null)
 // admin 走 scope=all 审批视图（可看到他人发起的流程）；普通用户只看自己的台账
 const isAdmin = computed(() => props.role === 'admin')
 
@@ -248,6 +250,7 @@ onMounted(async () => {
                 <button class="btn" @click="detailItem = w">详情</button>
                 <button v-if="canApprove(w)" class="btn" @click="handleApprove(w, 'approved')">通过</button>
                 <button v-if="canApprove(w)" class="btn" @click="handleApprove(w, 'rejected')">驳回</button>
+                <button v-if="isAdmin && w.flow_code === 'tool_demand' && w.status === 'approved'" class="btn btn-primary" @click="deliverItem = w">交付/挂载</button>
               </td>
             </tr>
             <tr v-if="!items.length">
@@ -266,6 +269,8 @@ onMounted(async () => {
       </div>
     </div>
   </section>
+
+  <WorkflowDeliverModal v-if="deliverItem" :token="token" :item="deliverItem" @close="deliverItem = null" @delivered="() => { deliverItem = null; fetchList(); emit('menusUpdated') }" />
 
   <!-- 流程详情抽屉 -->
   <div v-if="detailItem" class="drawer-mask" @click.self="detailItem = null">

@@ -6,11 +6,13 @@ import ApiTester from "./components/ApiTester.vue"
 import BomManager from "./components/BomManager.vue"
 import ChatWorkspace from "./components/ChatWorkspace.vue"
 import EvalDashboard from "./components/EvalDashboard.vue"
+import FeatureGuide from "./components/FeatureGuide.vue"
 import FloatingCopilot from "./components/FloatingCopilot.vue"
 import KnowledgeBase from "./components/KnowledgeBase.vue"
 import MemoryManager from "./components/MemoryManager.vue"
 import MenuManager from "./components/MenuManager.vue"
 import PasscodeGate from "./components/PasscodeGate.vue"
+import Perf3DLab from "./components/Perf3DLab.vue"
 import PlatformOverview from "./components/PlatformOverview.vue"
 import RetrievalLab from "./components/RetrievalLab.vue"
 import RoleManager from "./components/RoleManager.vue"
@@ -36,7 +38,8 @@ const groupedMenus = computed(() => {
   for (const item of menuItems.value) { (map[item.group_name] ||= []).push(item) }
   return map
 })
-const currentMenuTitle = computed(() => menuItems.value.find((m) => m.menu_key === activeTab.value)?.title || "系统工作台")
+const activeMenuItem = computed(() => menuItems.value.find((m) => m.menu_key === activeTab.value) || null)
+const currentMenuTitle = computed(() => activeMenuItem.value?.title || "系统工作台")
 
 async function loadMenus() {
   if (!token.value) return
@@ -127,8 +130,10 @@ onMounted(async () => {
         <div v-if="initError" class="err-banner">{{ initError }}</div>
         <template v-else>
           <PlatformOverview v-if="activeTab === 'overview'" @navigate="(t) => (activeTab = t)" />
+          <FeatureGuide v-else-if="activeTab === 'feature_guide'" @navigate="(t) => (activeTab = t)" />
           <BomManager v-else-if="activeTab === 'bom'" :token="token" />
-          <WorkflowCenter v-else-if="activeTab === 'workflow'" :token="token" :role="currentUser?.role || 'user'" @go-chat="activeTab = 'chat'" />
+          <Perf3DLab v-else-if="activeTab === 'perf_3d'" />
+          <WorkflowCenter v-else-if="activeTab === 'workflow'" :token="token" :role="currentUser?.role || 'user'" @go-chat="activeTab = 'chat'" @menus-updated="loadMenus" />
           <ChatWorkspace v-else-if="activeTab === 'chat'" :token="token" @go-workflow="activeTab = 'workflow'" />
           <MemoryManager v-else-if="activeTab === 'mem'" :token="token" />
           <KnowledgeBase v-else-if="activeTab === 'kb'" :token="token" />
@@ -136,6 +141,8 @@ onMounted(async () => {
           <EvalDashboard v-else-if="activeTab === 'eval'" :token="token" />
           <MenuManager v-else-if="activeTab === 'menu_admin'" :token="token" @menus-updated="loadMenus" />
           <RoleManager v-else-if="activeTab === 'role_admin'" :token="token" @roles-updated="loadRoles" />
+          <ApiTester v-else-if="activeTab === 'api'" :token="token" :session-id="sessionId" />
+          <div v-else-if="activeMenuItem?.external_url" class="ext-wrap"><div class="ext-bar"><span>外部挂载微服务：{{ activeMenuItem.external_url }}</span><a class="btn" :href="activeMenuItem.external_url" target="_blank">新窗口打开 ↗</a></div><iframe :src="activeMenuItem.external_url" class="ext-frame" /></div>
           <ApiTester v-else :token="token" :session-id="sessionId" />
         </template>
       </main>
@@ -177,4 +184,7 @@ onMounted(async () => {
 .modal { background: var(--card); padding: 20px; border-radius: 12px; width: 320px; display: flex; flex-direction: column; gap: 10px; }
 .m-input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
 .m-actions { display: flex; justify-content: space-between; }
+.ext-wrap { display: flex; flex-direction: column; gap: 10px; }
+.ext-bar { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; }
+.ext-frame { width: 100%; height: calc(100vh - 170px); border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 </style>

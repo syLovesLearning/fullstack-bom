@@ -53,42 +53,45 @@ export function useAgentStream() {
       const decoder = new TextDecoder()
       let buffer = ""
 
+      const processFrame = (frame: string) => {
+        const lines = frame.split("\n")
+        const evLine = lines.find((l) => l.startsWith("event:"))
+        const dataLine = lines.find((l) => l.startsWith("data:"))
+        if (!evLine || !dataLine) return
+        const event = evLine.slice(6).trim()
+        const data = JSON.parse(dataLine.slice(5).trim())
+
+        if (event === "thought") {
+          const detail = data.step === 0 ? String(data.status) : `第 ${data.step} 步推理中...`
+          traces.value.push({ type: "thought", detail })
+        } else if (event === "tool_start") {
+          traces.value.push({ type: "tool_start", detail: `调用 ${data.tool}(${JSON.stringify(data.args)})` })
+        } else if (event === "tool_result") {
+          traces.value.push({ type: "tool_result", detail: `${data.tool} 完成 (${data.duration_ms}ms)` })
+        } else if (event === "citations") {
+          citations.value = data.items ?? []
+        } else if (event === "action_cards") {
+          actionCards.value.push(...(data.items ?? []))
+        } else if (event === "token") {
+          answer.value += data.text ?? ""
+        } else if (event === "done") {
+          lastRunId.value = data.run_id ?? ""
+          traces.value.push({ type: "done", detail: `完成 · tokens=${data.total_tokens}, 耗时=${data.latency_ms}ms` })
+        } else if (event === "error") {
+          errorMsg.value = data.message ?? "未知错误"
+          traces.value.push({ type: "error", detail: `异常：${errorMsg.value}` })
+        }
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
         const frames = buffer.split("\n\n")
         buffer = frames.pop() ?? ""
-
-        for (const frame of frames) {
-          const lines = frame.split("\n")
-          const evLine = lines.find((l) => l.startsWith("event:"))
-          const dataLine = lines.find((l) => l.startsWith("data:"))
-          if (!evLine || !dataLine) continue
-          const event = evLine.slice(6).trim()
-          const data = JSON.parse(dataLine.slice(5).trim())
-
-          if (event === "thought") {
-            const detail = data.step === 0 ? String(data.status) : `第 ${data.step} 步推理中...`
-            traces.value.push({ type: "thought", detail })
-          } else if (event === "tool_start") {
-            traces.value.push({ type: "tool_start", detail: `调用 ${data.tool}(${JSON.stringify(data.args)})` })
-          } else if (event === "tool_result") {
-            traces.value.push({ type: "tool_result", detail: `${data.tool} 完成 (${data.duration_ms}ms)` })
-          } else if (event === "citations") {
-            citations.value = data.items ?? []
-          } else if (event === "action_cards") {
-            actionCards.value.push(...(data.items ?? []))
-          } else if (event === "token") {
-            answer.value += data.text ?? ""
-          } else if (event === "done") {
-            lastRunId.value = data.run_id ?? ""
-            traces.value.push({ type: "done", detail: `完成 · tokens=${data.total_tokens}, 耗时=${data.latency_ms}ms` })
-          } else if (event === "error") {
-            errorMsg.value = data.message ?? "未知错误"
-          }
-        }
+        for (const frame of frames) processFrame(frame)
       }
+      if (buffer.trim()) processFrame(buffer)
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return
       errorMsg.value = err instanceof Error ? err.message : String(err)

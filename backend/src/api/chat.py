@@ -75,13 +75,13 @@ async def chat_stream(
         run_id = await trace_repo.create_run(
             session_id=session_id, user_id=auth.user_id, model_name=settings.llm_model
         )
-        await session_repo.append_message(
-            session_id=session_id, user_id=auth.user_id, role="user", content=body.message, run_id=run_id
-        )
         allowed_defs = await workflow_repo.list_definitions(role=auth.role)
         skill_prompt = build_workflow_skill_prompt(allowed_defs)
         messages = await memory_service.build_context_messages(
             session_id=session_id, user_id=auth.user_id, user_text=body.message, extra_system_prompt=skill_prompt
+        )
+        await session_repo.append_message(
+            session_id=session_id, user_id=auth.user_id, role="user", content=body.message, run_id=run_id
         )
         await trace_repo.append_step(
             run_id=run_id,
@@ -176,6 +176,7 @@ async def chat_stream(
                 await trace_repo.finish_run(run_id, "failed", state.total_tokens, cost_ms, str(exc))
                 await emit_event("error", {"message": str(exc)})
             finally:
+                await memory_service.invalidate_session_cache(session_id=session_id, user_id=auth.user_id)
                 await close_event_stream()
 
         task = asyncio.create_task(run_agent())

@@ -14,6 +14,7 @@ from src.infra.redis import close_redis_client, create_redis_client
 from src.repositories.bom_repo import BomRepo
 from src.repositories.menu_repo import MenuRepo
 from src.repositories.role_repo import RoleRepo
+from src.repositories.workflow_repo import WorkflowRepo
 
 
 @asynccontextmanager
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await app.state.role_repo.ensure_initialized()
     app.state.menu_repo = MenuRepo(app.state.pg_pool)
     await app.state.menu_repo.ensure_initialized()
+    await WorkflowRepo(app.state.pg_pool).ensure_tool_demand_definition()
     app.state.redis = await create_redis_client(settings.redis_url)
     app.state.http_client = create_http_client()
     try:
