@@ -11,3 +11,5 @@
 *.log
 *.zip
 *.patch
+release/
+logs/

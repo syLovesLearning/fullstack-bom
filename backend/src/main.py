@@ -1,10 +1,12 @@
-"""FastAPI 应用入口：通过 lifespan 统一托管 Postgres / Redis / HTTPX 连接池。"""
+"""FastAPI 应用入口：通过 lifespan 统一托管 Postgres / Redis / HTTPX 连接池与全局异常日志。"""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from src.api import auth, bom, bom_formula, chat, docs, eval as eval_api, memories, menus, roles, sessions, tools, workflows
 from src.config import settings
@@ -15,6 +17,9 @@ from src.repositories.bom_repo import BomRepo
 from src.repositories.menu_repo import MenuRepo
 from src.repositories.role_repo import RoleRepo
 from src.repositories.workflow_repo import WorkflowRepo
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("fullstack_bom")
 
 
 @asynccontextmanager
@@ -54,6 +59,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        logger.exception("Unhandled 500 on %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"})
+
 
 app.include_router(auth.router)
 app.include_router(sessions.router)

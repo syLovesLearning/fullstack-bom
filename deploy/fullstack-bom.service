@@ -1,0 +1,13 @@
+[Unit]
+Description=Fullstack BOM Agent API
+After=network.target postgresql.service redis-server.service
+
+[Service]
+WorkingDirectory=/opt/fullstack-bom-prod/backend
+Environment="PYTHONPATH=/opt/fullstack-bom-prod/backend"
+ExecStart=/opt/fullstack-bom-prod/backend/.venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
